@@ -1,0 +1,6 @@
+{
+  "name": "Ankara Yaşam ve Güvenlik Atlası",
+  "description": "Ankara ilçeleri ve mahalleleri için etkileşimli yaşam kalitesi, suç ve güvenlik istatistikleri, ulaşım, eğitim ve sosyal yaşam analiz platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
