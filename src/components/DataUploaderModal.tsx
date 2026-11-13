@@ -307,7 +307,7 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
           vibe: row.vibe || 'Veri yüklemesiyle haritaya yeni eklenen dinamik Ankara mahallesi 📍✨',
           funFact: row.funFact || 'Bu mahalle haritaya kullanıcı veri seti ile eklenmiştir.',
           idealFor: ['Şehir Sakinleri', 'Yeni Yerleşim Arayanlar', 'Aileler'],
-          pros: ['Google Maps üzerinde gerçek koordinatlı yeni pin', 'Özelleştirilmiş veri entegrasyonu'],
+          pros: ['OpenStreetMap üzerinde gerçek koordinatlı yeni pin', 'Özelleştirilmiş veri entegrasyonu'],
           cons: ['Daha fazla kullanıcı geri bildirimi toplanıyor'],
         };
 
@@ -321,27 +321,27 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-2xl rounded-3xl glass-panel neon-border shadow-2xl flex flex-col text-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-6 bg-[#061317]/85 backdrop-blur-md overflow-y-auto">
+      <div className="relative w-full max-w-2xl rounded-3xl glass-panel neon-border shadow-2xl flex flex-col text-teal-50 overflow-hidden">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-5 bg-slate-950/90 border-b border-slate-800">
+        <div className="flex items-center justify-between p-5 bg-[#0b1f26]/95 border-b border-[#e8a0b2]/25">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30">
+            <div className="p-2 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/40">
               <Database className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-lg font-display font-bold text-white">
                 Veri Seti Yükle & Entegre Et
               </h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-teal-200/70">
                 Kendi CSV veya JSON verinizi ekleyin; listede olmayan yeni mahalleler otomatik haritaya eklensin
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-xl text-teal-200/70 hover:text-white hover:bg-teal-500/20 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -352,31 +352,31 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
           
           {/* Quick Presets Buttons */}
           <div>
-            <span className="text-xs font-semibold text-slate-400 block mb-2">
+            <span className="text-xs font-semibold text-teal-200/70 block mb-2">
               Hazır Şablonlar & Test Veri Setleri:
             </span>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => loadPreset('new_neighborhoods')}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 transition-colors flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#e8a0b2]/20 hover:bg-[#e8a0b2]/30 text-[#f3c1cd] border border-[#e8a0b2]/40 transition-colors flex items-center gap-1.5 cursor-pointer"
               >
                 <span>✨ Yeni Mahalle Ekle (Yaşamkent & Beysukent)</span>
               </button>
               <button
                 onClick={() => loadPreset('security2025')}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#061317] hover:bg-teal-500/20 text-teal-50 border border-teal-900/70 transition-colors"
               >
                 🚨 2025 Emniyet & Güvenlik CSV
               </button>
               <button
                 onClick={() => loadPreset('ego2025')}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#061317] hover:bg-teal-500/20 text-teal-50 border border-teal-900/70 transition-colors"
               >
                 🚇 EGO 2025 Raylı Sistem JSON
               </button>
               <button
                 onClick={() => loadPreset('student')}
-                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#061317] hover:bg-teal-500/20 text-teal-50 border border-teal-900/70 transition-colors"
               >
                 🎓 Öğrenci & Sosyal Yaşam CSV
               </button>
@@ -384,15 +384,15 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
           </div>
 
           {/* Drag & Drop / File Input */}
-          <div className="border-2 border-dashed border-slate-700 hover:border-amber-500/70 rounded-2xl p-6 text-center transition-colors bg-slate-950/40">
-            <Upload className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-            <p className="text-xs text-slate-300 font-medium">
+          <div className="border-2 border-dashed border-[#e8a0b2]/35 hover:border-[#e8a0b2]/75 rounded-2xl p-6 text-center transition-colors bg-[#061317]/60">
+            <Upload className="w-8 h-8 text-[#e8a0b2] mx-auto mb-2" />
+            <p className="text-xs text-teal-50 font-medium">
               Bilgisayarınızdan CSV veya JSON dosyası seçin
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5">
+            <p className="text-[11px] text-teal-200/60 mt-0.5">
               (Desteklenen formatlar: .csv, .json, .txt)
             </p>
-            <label className="mt-3 inline-block cursor-pointer px-4 py-1.5 text-xs font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors">
+            <label className="mt-3 inline-block cursor-pointer px-4 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] hover:brightness-105 rounded-lg transition-all">
               Dosya Seç
               <input
                 type="file"
@@ -402,7 +402,7 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
               />
             </label>
             {fileName && (
-              <span className="block text-xs font-mono text-cyan-400 mt-2 font-semibold">
+              <span className="block text-xs font-mono text-teal-300 mt-2 font-semibold">
                 Seçili dosya: {fileName}
               </span>
             )}
@@ -410,7 +410,7 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
 
           {/* Paste Raw Data Area */}
           <div>
-            <label className="text-xs font-semibold text-slate-300 block mb-1">
+            <label className="text-xs font-semibold text-teal-50 block mb-1">
               Veya Veriyi Doğrudan Yapıştırın (CSV / JSON):
             </label>
             <textarea
@@ -425,7 +425,7 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
               }}
               placeholder={`mahalle,ilce,guvenlik_skoru,suc_kategori,yasanabilirlik,ortalama_kira\nKavaklıdere & Tunalı Hilmi,Çankaya,95,Çok Düşük,98,42000`}
               rows={5}
-              className="w-full rounded-xl bg-slate-950 border border-slate-800 p-3 text-xs font-mono text-slate-200 focus:outline-none focus:border-amber-500 transition-colors"
+              className="w-full rounded-xl bg-[#061317] border border-[#e8a0b2]/30 p-3 text-xs font-mono text-teal-50 placeholder-teal-200/40 focus:outline-none focus:border-[#e8a0b2] transition-colors"
             />
           </div>
 
@@ -447,12 +447,12 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
           {/* Parsed Preview Table */}
           {parsedRows.length > 0 && (
             <div>
-              <span className="text-xs font-semibold text-slate-400 block mb-1.5">
+              <span className="text-xs font-semibold text-teal-200/70 block mb-1.5">
                 Eşleşen Veri Önizlemesi ({parsedRows.length} satır):
               </span>
-              <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 text-xs">
+              <div className="max-h-36 overflow-y-auto rounded-xl border border-teal-900/70 bg-[#061317] text-xs">
                 <table className="w-full text-left font-mono text-[11px]">
-                  <thead className="bg-slate-900 border-b border-slate-800 text-slate-400">
+                  <thead className="bg-[#0b1f26] border-b border-teal-900/70 text-teal-200/70">
                     <tr>
                       <th className="p-2">Mahalle</th>
                       <th className="p-2">İlçe</th>
@@ -461,13 +461,13 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
                       <th className="p-2">Kira</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-slate-300">
+                  <tbody className="divide-y divide-teal-900/50 text-teal-50">
                     {parsedRows.slice(0, 5).map((row, i) => (
-                      <tr key={i} className="hover:bg-slate-900/50">
+                      <tr key={i} className="hover:bg-teal-500/10">
                         <td className="p-2 font-sans font-medium text-white">{row.mahalle || row.name || '-'}</td>
                         <td className="p-2">{row.ilce || row.district || '-'}</td>
                         <td className="p-2 text-emerald-400">{row.yasanabilirlik || row.livabilityScore || '-'}</td>
-                        <td className="p-2 text-rose-400">{row.guvenlik_skoru || row.safetyScore || '-'}</td>
+                        <td className="p-2 text-[#f3c1cd]">{row.guvenlik_skoru || row.safetyScore || '-'}</td>
                         <td className="p-2">{row.ortalama_kira || row.averageRent || '-'}</td>
                       </tr>
                     ))}
@@ -480,21 +480,21 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-4 bg-slate-950 border-t border-slate-800">
-          <span className="text-xs text-slate-500">
+        <div className="flex items-center justify-between p-4 bg-[#061317] border-t border-[#e8a0b2]/25">
+          <span className="text-xs text-teal-200/60">
             Mevcut {currentNeighborhoods.length} mahalleye uygulanacak
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+              className="px-4 py-1.5 text-xs font-medium text-teal-50 bg-[#0b1f26] hover:bg-teal-500/20 border border-teal-900/70 rounded-lg transition-colors cursor-pointer"
             >
               Vazgeç
             </button>
             <button
               onClick={applyChanges}
               disabled={parsedRows.length === 0}
-              className="px-4 py-1.5 text-xs font-semibold text-slate-950 bg-amber-400 hover:bg-amber-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center gap-1.5"
+              className="px-4 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] hover:brightness-105 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Veri Setini Haritaya Uygula</span>

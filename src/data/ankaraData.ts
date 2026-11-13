@@ -1450,7 +1450,7 @@ export const ANKARA_NEIGHBORHOODS: NeighborhoodData[] = [
     transportScore: 67,
     entertainmentScore: 56,
     economyScore: 91,
-    nearestMetroStation: 'Hasanoğlan & Lalalhan Başkentray Uzatma İstasyonu',
+    nearestMetroStation: 'Hasanoğlan & Lalahan Başkentray Uzatma İstasyonu',
     metroLines: ['EGO Elmadağ/Hasanoğlan Hatları (Toplam 106.525 yolcu/ay)', 'Başkentray'],
     dailyTransitUsage: 'EGO verilerine göre Elmadağ ve Hasanoğlan hatlarında ayda 106.000+ yolcu',
     verdictTitle: 'Kayak Merkezi, Köy Enstitüsü Mirası ve Sanayi (3.5 Yıldız)',
@@ -1468,6 +1468,161 @@ export const ANKARA_NEIGHBORHOODS: NeighborhoodData[] = [
   },
 ];
 
+export interface ReferencePoint {
+  id: string;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
+export const REFERENCE_POINTS: ReferencePoint[] = [
+  { id: 'none', label: 'Yok', lat: 0, lng: 0 },
+  { id: 'kizilay', label: 'Kızılay Merkez', lat: 39.9208, lng: 32.8541 },
+  { id: 'hacettepe', label: 'Hacettepe Beytepe Kampüsü', lat: 39.8705, lng: 32.7356 },
+  { id: 'odtu', label: 'ODTÜ Kampüsü', lat: 39.8913, lng: 32.7847 },
+  { id: 'bilkent', label: 'Bilkent Üniversitesi', lat: 39.8679, lng: 32.7485 },
+  { id: 'etlik', label: 'Etlik Şehir Hastanesi', lat: 39.9675, lng: 32.8318 },
+  { id: 'ostim', label: 'Ostim OSB', lat: 39.9742, lng: 32.7468 },
+];
+
+export interface RailLine {
+  id: string;
+  name: string;
+  type: 'Metro' | 'Ankaray' | 'Başkentray';
+  color: string;
+  stations: string;
+  coordinates: [number, number][];
+}
+
+export const ANKARA_RAIL_LINES: RailLine[] = [
+  {
+    id: 'M1',
+    name: 'M1 Metrosu (Kızılay – Batıkent)',
+    type: 'Metro',
+    color: '#2dd4bf', // teal-400
+    stations: 'Kızılay · Sıhhiye · Ulus · AKM · Akköprü · Yenimahalle · Demetevler · Ostim · Batıkent',
+    coordinates: [
+      [39.9208, 32.8541], // Kızılay
+      [39.9286, 32.8551], // Sıhhiye
+      [39.9412, 32.8546], // Ulus
+      [39.9428, 32.8424], // AKM
+      [39.9511, 32.8323], // Akköprü
+      [39.9565, 32.8194], // İvedik
+      [39.9632, 32.8055], // Yenimahalle
+      [39.9648, 32.7908], // Demetevler
+      [39.9658, 32.7764], // Hastane
+      [39.9668, 32.7615], // Macunköy
+      [39.9718, 32.7495], // Ostim
+      [39.9685, 32.7285], // Batıkent
+    ],
+  },
+  {
+    id: 'M2',
+    name: 'M2 Metrosu (Kızılay – Çayyolu / Koru)',
+    type: 'Metro',
+    color: '#fb923c', // orange-400
+    stations: 'Kızılay · Necatibey · Milli Kütüphane · Söğütözü · ODTÜ · Bilkent · Beytepe · Ümitköy · Koru',
+    coordinates: [
+      [39.9208, 32.8541], // Kızılay
+      [39.9188, 32.8435], // Necatibey
+      [39.9145, 32.8255], // Milli Kütüphane
+      [39.9125, 32.8095], // Söğütözü
+      [39.9085, 32.7965], // MTA
+      [39.9038, 32.7805], // ODTÜ
+      [39.9025, 32.7625], // Bilkent
+      [39.9018, 32.7425], // Tarım Bakanlığı
+      [39.8998, 32.7245], // Beytepe
+      [39.8955, 32.6995], // Ümitköy
+      [39.8908, 32.6815], // Çayyolu
+      [39.8842, 32.6625], // Koru
+    ],
+  },
+  {
+    id: 'M3',
+    name: 'M3 Metrosu (Batıkent – Eryaman – OSB/Törekent)',
+    type: 'Metro',
+    color: '#38bdf8', // sky-400
+    stations: 'Batıkent · Batı Merkez · Mesa · İstanbul Yolu · Eryaman 1-2 · Eryaman 5 · Harikalar Diyarı · Fatih · OSB/Törekent',
+    coordinates: [
+      [39.9685, 32.7285], // Batıkent
+      [39.9742, 32.7128], // Batı Merkez
+      [39.9785, 32.6982], // Mesa
+      [39.9822, 32.6795], // Botanik
+      [39.9835, 32.6602], // İstanbul Yolu
+      [39.9805, 32.6405], // Eryaman 1-2
+      [39.9765, 32.6245], // Eryaman 5
+      [39.9735, 32.6085], // Devlet Mahallesi
+      [39.9722, 32.5925], // Harikalar Diyarı
+      [39.9738, 32.5765], // Fatih
+      [39.9792, 32.5635], // GOP
+      [39.9862, 32.5515], // OSB-Törekent
+    ],
+  },
+  {
+    id: 'M4',
+    name: 'M4 Metrosu (Kızılay – AKM – Keçiören)',
+    type: 'Metro',
+    color: '#a78bfa', // violet-400
+    stations: 'Kızılay · Gar · AKM · ASKİ · Dışkapı · Meteoroloji · Belediye · Mecidiye · Kuyubaşı · Dutluk · Şehitler',
+    coordinates: [
+      [39.9208, 32.8541], // Kızılay
+      [39.9355, 32.8452], // Gar
+      [39.9428, 32.8424], // AKM
+      [39.9512, 32.8475], // ASKİ
+      [39.9578, 32.8575], // Dışkapı
+      [39.9648, 32.8615], // Meteoroloji
+      [39.9738, 32.8618], // Belediye
+      [39.9825, 32.8645], // Mecidiye
+      [39.9912, 32.8655], // Kuyubaşı
+      [39.9992, 32.8628], // Dutluk
+      [40.0085, 32.8582], // Şehitler
+    ],
+  },
+  {
+    id: 'A1',
+    name: 'A1 Ankaray (Dikimevi – Kızılay – AŞTİ)',
+    type: 'Ankaray',
+    color: '#f59e0b', // amber-500
+    stations: 'Dikimevi · Kurtuluş · Kolej · Kızılay · Demirtepe · Maltepe · Tandoğan · Beşevler · Bahçelievler · Emek · AŞTİ',
+    coordinates: [
+      [39.9315, 32.8785], // Dikimevi
+      [39.9278, 32.8685], // Kurtuluş
+      [39.9235, 32.8612], // Kolej
+      [39.9208, 32.8541], // Kızılay
+      [39.9235, 32.8465], // Demirtepe
+      [39.9265, 32.8398], // Maltepe
+      [39.9302, 32.8305], // Tandoğan
+      [39.9288, 32.8215], // Beşevler
+      [39.9238, 32.8178], // Bahçelievler
+      [39.9195, 32.8152], // Emek
+      [39.9178, 32.8115], // AŞTİ
+    ],
+  },
+  {
+    id: 'BASKENTRAY',
+    name: 'Başkentray Banliyö Hattı (Sincan – Kayaş)',
+    type: 'Başkentray',
+    color: '#34d399', // emerald-400
+    stations: 'Sincan · Elvankent · Eryaman YHT · Etimesgut · Hippodrom · Ankara Gar · Yenişehir · Cebeci · Mamak · Kayaş',
+    coordinates: [
+      [39.9688, 32.5835], // Sincan
+      [39.9562, 32.6155], // Lale
+      [39.9522, 32.6335], // Elvankent
+      [39.9508, 32.6552], // Eryaman YHT
+      [39.9462, 32.6775], // Etimesgut
+      [39.9415, 32.7325], // Behiçbey
+      [39.9378, 32.7985], // Gazi
+      [39.9358, 32.8442], // Ankara Gar
+      [39.9315, 32.8555], // Yenişehir
+      [39.9278, 32.8685], // Kurtuluş
+      [39.9322, 32.8825], // Cebeci
+      [39.9345, 32.9055], // Saimekadın
+      [39.9362, 32.9275], // Mamak
+      [39.9325, 32.9765], // Kayaş
+    ],
+  },
+];
+
 // Helper to filter neighborhoods
 export interface FilterState {
   searchQuery: string;
@@ -1479,6 +1634,7 @@ export interface FilterState {
   minEducation: number;
   maxRent: number;
   crimeFilter: string; // 'all' | 'Çok Düşük' | 'Düşük' | 'Orta' | 'Yüksek'
+  selectedReferencePointId: string;
 }
 
 export const INITIAL_FILTER_STATE: FilterState = {
@@ -1491,71 +1647,43 @@ export const INITIAL_FILTER_STATE: FilterState = {
   minEducation: 0,
   maxRent: 60000,
   crimeFilter: 'all',
+  selectedReferencePointId: 'none',
 };
 
-// Color scales for layers
-export const getLayerColor = (layer: LayerType, value: number): string => {
-  switch (layer) {
-    case 'livability':
-      // Higher is better (Emerald to Rose)
-      if (value >= 90) return '#10b981'; // Emerald 500
-      if (value >= 80) return '#06b6d4'; // Cyan 500
-      if (value >= 70) return '#f59e0b'; // Amber 500
-      if (value >= 60) return '#f97316'; // Orange 500
-      return '#ef4444'; // Red 500
+// Dangerous neighborhood rule: high crime category OR safetyScore < 55
+export const isDangerousNeighborhood = (n: NeighborhoodData): boolean => {
+  const crime = (n?.crimeRateCategory ?? '').toLowerCase();
+  const hasHighCrime =
+    crime.includes('yüksek') ||
+    crime.includes('riskli') ||
+    crime.includes('tehlikeli');
+  const safety = n?.safetyScore ?? 0;
+  return hasHighCrime || safety < 55;
+};
 
-    case 'safety':
-      // Higher score = safer. If low score = HIGH CRIME
-      if (value >= 90) return '#10b981'; // Ultra safe
-      if (value >= 80) return '#3b82f6'; // Safe
-      if (value >= 70) return '#eab308'; // Moderate
-      if (value >= 60) return '#f97316'; // High incident alert
-      return '#dc2626'; // Red crime hotspot
+// Color scales for layers based on 3-tier system
+export const getScoreColor = (score: number, isDangerous: boolean = false): string => {
+  if (isDangerous || score < 55) return '#ef4444'; // Kırmızı (Tehlikeli / Düşük)
+  if (score < 75) return '#f59e0b'; // Turuncu / Kehribar (Orta: 55-74)
+  return '#10b981'; // Zümrüt Yeşili (Güvenli / Yüksek: 75+)
+};
 
-    case 'education':
-      if (value >= 90) return '#8b5cf6'; // Violet
-      if (value >= 80) return '#6366f1';
-      if (value >= 70) return '#3b82f6';
-      return '#94a3b8';
-
-    case 'transport':
-      if (value >= 90) return '#06b6d4'; // Cyan
-      if (value >= 80) return '#0284c7';
-      if (value >= 70) return '#64748b';
-      return '#ef4444';
-
-    case 'entertainment':
-      if (value >= 90) return '#ec4899'; // Pink/Rose
-      if (value >= 80) return '#f43f5e';
-      if (value >= 70) return '#f59e0b';
-      return '#64748b';
-
-    case 'economy':
-      if (value >= 90) return '#10b981';
-      if (value >= 80) return '#3b82f6';
-      return '#f59e0b';
-
-    default:
-      return '#3b82f6';
-  }
+export const getScoreLabel = (score: number, isDangerous: boolean = false): string => {
+  if (isDangerous) return 'Tehlikeli / Yüksek Risk';
+  if (score < 55) return 'Düşük / Riskli';
+  if (score < 75) return 'Orta';
+  return 'Güvenli / Çok İyi';
 };
 
 export const getLayerValue = (layer: LayerType, n: NeighborhoodData): number => {
   switch (layer) {
-    case 'livability':
-      return n.livabilityScore;
-    case 'safety':
-      return n.safetyScore;
-    case 'education':
-      return n.educationScore;
-    case 'transport':
-      return n.transportScore;
-    case 'entertainment':
-      return n.entertainmentScore;
-    case 'economy':
-      return n.economyScore;
-    default:
-      return n.livabilityScore;
+    case 'livability': return n.livabilityScore;
+    case 'safety': return n.safetyScore;
+    case 'education': return n.educationScore;
+    case 'transport': return n.transportScore;
+    case 'entertainment': return n.entertainmentScore;
+    case 'economy': return n.economyScore;
+    default: return n.livabilityScore;
   }
 };
 
