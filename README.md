@@ -11,3 +11,4 @@ AI Mahalle Danışmanı: Doğal dildeki aramaları analiz ederek bütçe ve bekl
 Mesafe & Sıralama Analizi: Kızılay, üniversite kampüsleri ve hastaneler gibi referans noktalara kuş uçuşu mesafe (km) hesaplama, gelişmiş sıralama seçenekleri ve 25 ilçeye özel özet kartlar.
 
 Yeni Arayüz & Özel Logo: Uzun incelemelerde göz yormayan Midnight Teal & Terracotta (gece petrolü ve sıcak bakır) teması ile Atakule ve kalkan silüetini birleştiren yeni logo tasarımı.
+Kullanıcı yorumlarını alıp kendi özel JSON dosyasında kayıtta tutar.
