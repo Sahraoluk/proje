@@ -18,7 +18,6 @@ import {
   Footprints,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { UserFeedback } from './UserFeedback';
 import { BudgetSimulator } from './BudgetSimulator';
 import {
   ReferencePoint,
@@ -493,9 +492,6 @@ export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = (
                 'Ankara mahalle verileri düzenli olarak güncellenmektedir.'}
             </div>
           </div>
-
-          {/* SECTION 6: KULLANICI GERİ BİLDİRİMİ */}
-          <UserFeedback neighborhood={neighborhood} onUpdate={() => {}} />
         </div>
 
         {/* Modal Footer */}

@@ -18,6 +18,7 @@ import {
   LayerType,
   PoiCategory,
   PoiItem,
+  ScoreWeights,
   TravelEstimate,
 } from '../types';
 import {
@@ -25,12 +26,14 @@ import {
   ANKARA_POI_FALLBACKS,
   POI_CATEGORY_META,
   ReferencePoint,
+  FilterState,
   calculateDistanceKm,
   estimateFallbackTravelMinutes,
   getLayerValue,
   getScoreColor,
   isDangerousNeighborhood,
 } from '../data/ankaraData';
+import { FilterControls } from './FilterControls';
 import { Legend } from './Legend';
 import {
   AlertTriangle,
@@ -47,6 +50,7 @@ import {
   PawPrint,
   ChevronDown,
   ChevronUp,
+  Compass,
 } from 'lucide-react';
 
 interface AnkaraMapProps {
@@ -60,9 +64,20 @@ interface AnkaraMapProps {
   onAddToCompare: (n: NeighborhoodData) => void;
   referencePoint?: ReferencePoint | null;
   travelTimes?: Record<string, TravelEstimate>;
+  // Integrated floating FilterControls props
+  filter: FilterState;
+  onFilterChange: (newFilter: FilterState) => void;
+  onResetFilters: () => void;
+  totalCount: number;
+  filteredCount: number;
+  scoreWeights: ScoreWeights;
+  onWeightsChange: (newWeights: ScoreWeights) => void;
+  onResetWeights: () => void;
+  onResetViewFocus: () => void;
 }
 
 const AnkaraBounds = { minLat: 38.7, maxLat: 40.75, minLng: 30.85, maxLng: 34.05 };
+const ANKARA_CENTER: [number, number] = [39.9255, 32.8662];
 
 const nominatimGeocodeCache = new Map<string, { province?: string; state?: string }>();
 const poiClientCache = new Map<PoiCategory, PoiItem[]>();
@@ -76,13 +91,28 @@ const OVERPASS_QUERY_BY_CATEGORY: Record<PoiCategory, string> = {
   veterinary: `node["amenity"="veterinary"](39.75,32.55,40.08,33.05);node["amenity"="animal_shelter"](39.75,32.55,40.08,33.05);`,
 };
 
-function MapCameraController({ target }: { target: NeighborhoodData | null }) {
+function MapCameraController({
+  target,
+  resetTrigger,
+}: {
+  target: NeighborhoodData | null;
+  resetTrigger: number;
+}) {
   const map = useMap();
+
   useEffect(() => {
     if (target && typeof target.lat === 'number' && typeof target.lng === 'number') {
       map.flyTo([target.lat, target.lng], 14, { duration: 0.9 });
     }
   }, [target, map]);
+
+  useEffect(() => {
+    if (resetTrigger > 0) {
+      map.closePopup();
+      map.flyTo(ANKARA_CENTER, 10, { duration: 1.0 });
+    }
+  }, [resetTrigger, map]);
+
   return null;
 }
 
@@ -288,12 +318,22 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
   onAddToCompare,
   referencePoint,
   travelTimes = {},
+  filter,
+  onFilterChange,
+  onResetFilters,
+  totalCount,
+  filteredCount,
+  scoreWeights,
+  onWeightsChange,
+  onResetWeights,
+  onResetViewFocus,
 }) => {
   const [warning, setWarning] = useState<string | null>(null);
   const [showRailLines, setShowRailLines] = useState<boolean>(false);
   const [poiMenuOpen, setPoiMenuOpen] = useState<boolean>(false);
   const [activePoiCategories, setActivePoiCategories] = useState<PoiCategory[]>([]);
   const [poiDataByCategory, setPoiDataByCategory] = useState<Partial<Record<PoiCategory, PoiItem[]>>>({});
+  const [resetTrigger, setResetTrigger] = useState<number>(0);
 
   const togglePoiCategory = async (cat: PoiCategory) => {
     const isCurrentlyActive = activePoiCategories.includes(cat);
@@ -422,6 +462,12 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
     }
   };
 
+  const handleResetView = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onResetViewFocus();
+    setResetTrigger((prev) => prev + 1);
+  };
+
   const layerOptions: { id: LayerType; label: string }[] = [
     { id: 'livability', label: 'Yaşanabilirlik' },
     { id: 'safety', label: 'Güvenlik' },
@@ -446,9 +492,45 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
   );
 
   return (
-    <div className="relative z-0 isolate w-full h-[610px] rounded-2xl overflow-hidden shadow-2xl border border-[#e8a0b2]/30 bg-[#061317]">
+    <div className="relative z-0 isolate w-full h-[670px] sm:h-[700px] rounded-2xl overflow-hidden shadow-2xl border border-[#e8a0b2]/30 bg-[#061317]">
+      {/* Floating Collapsible Top FilterControls Bar */}
+      <div className="absolute top-3 left-3 right-3 z-[520]">
+        <FilterControls
+          filter={filter}
+          onFilterChange={onFilterChange}
+          onReset={onResetFilters}
+          totalCount={totalCount}
+          filteredCount={filteredCount}
+          scoreWeights={scoreWeights}
+          onWeightsChange={onWeightsChange}
+          onResetWeights={onResetWeights}
+          isFloating
+        />
+      </div>
+
+      {/* Floating Right Button: "Tüm Ankara'yı Gör" (Reset View) */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="absolute top-[74px] sm:top-[76px] right-3 z-[500]"
+      >
+        <button
+          type="button"
+          onClick={handleResetView}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0b1f26]/92 hover:bg-[#e8a0b2]/20 backdrop-blur-md border border-[#e8a0b2]/45 text-xs font-bold text-[#f3c1cd] hover:text-white shadow-xl transition-all cursor-pointer"
+          title="Haritayı Ankara geneline döndür ve odak seçimini sıfırla"
+        >
+          <Compass className="w-3.5 h-3.5 text-[#e8a0b2]" />
+          <span>Tüm Ankara&apos;yı Gör</span>
+        </button>
+      </div>
+
       {/* Floating Left Control Stack: Layer Selector + Rail Lines + POI Layers */}
-      <div className="absolute top-3 left-3 z-[500] max-w-[calc(100%-4.75rem)] flex flex-col gap-2">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="absolute top-[74px] sm:top-[76px] left-3 z-[500] max-w-[calc(100%-11rem)] flex flex-col gap-2"
+      >
         <div className="bg-[#0b1f26]/90 backdrop-blur-md border border-[#e8a0b2]/30 p-1.5 rounded-xl flex flex-wrap sm:flex-col gap-1 shadow-xl">
           {layerOptions.map((l) => (
             <button
@@ -551,7 +633,7 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
       </div>
 
       <MapContainer
-        center={[39.9255, 32.8662]}
+        center={ANKARA_CENTER}
         zoom={11}
         zoomControl={false}
         className="w-full h-full z-0"
@@ -563,7 +645,7 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
           maxZoom={19}
         />
 
-        <MapCameraController target={selectedNeighborhood} />
+        <MapCameraController target={selectedNeighborhood} resetTrigger={resetTrigger} />
         <MapClickHandler onLocationClick={handleMapClick} />
 
         {/* Toggleable Rail Lines placed in a lower pane beneath neighborhood pins */}

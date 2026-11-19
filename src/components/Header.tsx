@@ -3,17 +3,16 @@ import {
   Layers,
   BarChart3,
   Scale,
-  Upload,
   FileText,
   Sparkles,
   Share2,
   Check,
-  MessageSquare,
+  BookOpen,
 } from 'lucide-react';
 import { LayerType } from '../types';
 import { BrandLogo } from './BrandLogo';
 
-export type AppTab = 'map' | 'analytics' | 'rankings' | 'reviews';
+export type AppTab = 'map' | 'analytics' | 'rankings' | 'about';
 
 interface HeaderProps {
   activeLayer: LayerType;
@@ -22,7 +21,6 @@ interface HeaderProps {
   onTabChange: (tab: AppTab) => void;
   compareCount: number;
   onOpenCompare: () => void;
-  onOpenUpload: () => void;
   onOpenReport: () => void;
 }
 
@@ -31,7 +29,6 @@ export const Header: React.FC<HeaderProps> = ({
   onTabChange,
   compareCount,
   onOpenCompare,
-  onOpenUpload,
   onOpenReport,
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
@@ -111,16 +108,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             type="button"
-            onClick={() => onTabChange('reviews')}
+            onClick={() => onTabChange('about')}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'reviews'
+              activeTab === 'about'
                 ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950 font-semibold shadow-md shadow-[#e8a0b2]/25'
                 : 'text-teal-100/80 hover:text-white hover:bg-[#e8a0b2]/15'
             }`}
           >
             <span className="flex items-center gap-1.5">
-              <MessageSquare className="w-3.5 h-3.5" />
-              Kullanıcı Yorumları
+              <BookOpen className="w-3.5 h-3.5" />
+              Hakkında
             </span>
           </button>
         </nav>
@@ -147,17 +144,6 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </button>
 
-          {/* Dataset Upload Trigger */}
-          <button
-            type="button"
-            onClick={onOpenUpload}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-teal-50 bg-[#0b1f26] hover:bg-[#e8a0b2]/15 border border-[#e8a0b2]/30 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
-            title="Kendi veri setinizi yükleyin (CSV / JSON / EGO)"
-          >
-            <Upload className="w-3.5 h-3.5 text-[#f3c1cd]" />
-            <span className="hidden xl:inline">Veri Yükle</span>
-          </button>
-
           {/* Comparison Drawer Trigger */}
           <button
             type="button"
@@ -181,7 +167,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenReport}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 rounded-lg shadow-sm shadow-[#e8a0b2]/30 transition-all whitespace-nowrap cursor-pointer"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 rounded-lg shadow-sm shadow-[#e8a0b2]/30 transition-all whitespace-nowrap cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Rapor Al</span>
@@ -211,7 +197,7 @@ export const Header: React.FC<HeaderProps> = ({
               : 'text-teal-200/70'
           }`}
         >
-          EGO & İstatistikler
+          EGO & Analiz
         </button>
         <button
           type="button"
@@ -226,14 +212,14 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => onTabChange('reviews')}
+          onClick={() => onTabChange('about')}
           className={`flex-1 py-1.5 text-xs text-center rounded-lg font-medium transition-all ${
-            activeTab === 'reviews'
+            activeTab === 'about'
               ? 'bg-[#e8a0b2] text-slate-950 font-bold'
               : 'text-teal-200/70'
           }`}
         >
-          Yorumlar
+          Hakkında
         </button>
       </div>
     </header>
