@@ -64,6 +64,18 @@ interface AnkaraMapProps {
 
 const AnkaraBounds = { minLat: 38.7, maxLat: 40.75, minLng: 30.85, maxLng: 34.05 };
 
+const nominatimGeocodeCache = new Map<string, { province?: string; state?: string }>();
+const poiClientCache = new Map<PoiCategory, PoiItem[]>();
+let lastNominatimClientCall = 0;
+
+const OVERPASS_QUERY_BY_CATEGORY: Record<PoiCategory, string> = {
+  hospital: `node["amenity"="hospital"](39.75,32.55,40.08,33.05);way["amenity"="hospital"](39.75,32.55,40.08,33.05);`,
+  library: `node["amenity"="library"](39.75,32.55,40.08,33.05);way["amenity"="library"](39.75,32.55,40.08,33.05);`,
+  park: `way["leisure"="park"]["name"](39.77,32.57,40.06,33.02);`,
+  police: `node["amenity"="police"](39.75,32.55,40.08,33.05);way["amenity"="police"](39.75,32.55,40.08,33.05);`,
+  veterinary: `node["amenity"="veterinary"](39.75,32.55,40.08,33.05);node["amenity"="animal_shelter"](39.75,32.55,40.08,33.05);`,
+};
+
 function MapCameraController({ target }: { target: NeighborhoodData | null }) {
   const map = useMap();
   useEffect(() => {
@@ -292,31 +304,67 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
 
     setActivePoiCategories((prev) => [...prev, cat]);
     if (!poiDataByCategory[cat]) {
+      const cachedPois = poiClientCache.get(cat);
+      if (cachedPois) {
+        setPoiDataByCategory((prev) => ({
+          ...prev,
+          [cat]: cachedPois,
+        }));
+        return;
+      }
+
       // Immediately seed curated Ankara POIs so markers render without waiting
       setPoiDataByCategory((prev) => ({
         ...prev,
         [cat]: ANKARA_POI_FALLBACKS[cat],
       }));
+
       try {
-        const res = await axios.get<{ items?: PoiItem[] }>(`/api/pois?category=${cat}`);
-        const osmItems = Array.isArray(res.data?.items) ? res.data.items : [];
-        if (osmItems.length > 0) {
-          // Merge curated POIs with Overpass results (avoid duplicates by approximate coords)
-          const merged = [...ANKARA_POI_FALLBACKS[cat]];
-          for (const item of osmItems) {
-            const existsNear = merged.some(
-              (m) =>
-                Math.abs(m.lat - item.lat) < 0.002 && Math.abs(m.lng - item.lng) < 0.002
-            );
-            if (!existsNear) {
-              merged.push(item);
-            }
+        const overpassQl = `[out:json][timeout:6];(${OVERPASS_QUERY_BY_CATEGORY[cat]});out center 25;`;
+        const res = await axios.post<{ elements?: Array<Record<string, unknown>> }>(
+          'https://overpass-api.de/api/interpreter',
+          `data=${encodeURIComponent(overpassQl)}`,
+          {
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            timeout: 4500,
           }
-          setPoiDataByCategory((prev) => ({
-            ...prev,
-            [cat]: merged,
-          }));
+        );
+
+        const elements = Array.isArray(res.data?.elements) ? res.data.elements : [];
+        const osmItems: PoiItem[] = [];
+        for (const el of elements) {
+          const center = el.center as { lat?: number; lon?: number } | undefined;
+          const lat = typeof el.lat === 'number' ? el.lat : center?.lat;
+          const lng = typeof el.lon === 'number' ? el.lon : center?.lon;
+          const tags = (el.tags as Record<string, string>) || {};
+          const name = tags.name || tags['name:tr'];
+          if (!lat || !lng || !name) continue;
+          osmItems.push({
+            id: `osm-${cat}-${el.id}`,
+            name,
+            category: cat,
+            lat,
+            lng,
+            district: tags['addr:district'] || tags['addr:suburb'] || undefined,
+          });
+          if (osmItems.length >= 25) break;
         }
+
+        const merged = [...ANKARA_POI_FALLBACKS[cat]];
+        for (const item of osmItems) {
+          const existsNear = merged.some(
+            (m) =>
+              Math.abs(m.lat - item.lat) < 0.002 && Math.abs(m.lng - item.lng) < 0.002
+          );
+          if (!existsNear) {
+            merged.push(item);
+          }
+        }
+        poiClientCache.set(cat, merged);
+        setPoiDataByCategory((prev) => ({
+          ...prev,
+          [cat]: merged,
+        }));
       } catch {
         // Curated POIs already loaded
       }
@@ -334,17 +382,43 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
       setTimeout(() => setWarning(null), 3000);
       return;
     }
+
+    const cacheKey = `${lat.toFixed(3)},${lng.toFixed(3)}`;
+    const cachedAddress = nominatimGeocodeCache.get(cacheKey);
+    if (cachedAddress) {
+      const region = cachedAddress.province || cachedAddress.state;
+      if (region && region !== 'Ankara') {
+        setWarning(`Burası Ankara değil! (${region})`);
+        setTimeout(() => setWarning(null), 3000);
+      }
+      return;
+    }
+
     try {
+      const now = Date.now();
+      const elapsed = now - lastNominatimClientCall;
+      if (elapsed < 1050) {
+        await new Promise((r) => setTimeout(r, 1050 - elapsed));
+      }
+      lastNominatimClientCall = Date.now();
+
       const res = await axios.get<{ address?: { province?: string; state?: string } }>(
-        `/api/geocode/reverse?lat=${lat}&lng=${lng}`
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=tr`,
+        {
+          headers: { Accept: 'application/json' },
+          timeout: 4500,
+        }
       );
-      const region = res.data?.address?.province || res.data?.address?.state;
+
+      const address = res.data?.address ?? {};
+      nominatimGeocodeCache.set(cacheKey, address);
+      const region = address.province || address.state;
       if (region && region !== 'Ankara') {
         setWarning(`Burası Ankara değil! (${region})`);
         setTimeout(() => setWarning(null), 3000);
       }
     } catch {
-      // Silent ignore if proxy fails transiently
+      // Silent ignore if Nominatim fails transiently
     }
   };
 

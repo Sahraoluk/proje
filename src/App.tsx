@@ -8,6 +8,7 @@ import {
   DEFAULT_SCORE_WEIGHTS,
   computeWeightedLivability,
   isCustomWeightsActive,
+  calculateDistanceKm,
   estimateFallbackTravelMinutes,
   FilterState,
 } from './data/ankaraData';
@@ -39,6 +40,8 @@ const VALID_LAYERS: LayerType[] = [
   'entertainment',
   'economy',
 ];
+
+const travelTimesClientCache = new Map<string, Record<string, TravelEstimate>>();
 
 function getInitialUrlState(): {
   layer: LayerType;
@@ -142,50 +145,95 @@ export default function App() {
     window.history.replaceState(null, '', nextUrl);
   }, [comparedIds, filter.selectedLayer]);
 
-  // Fetch OSRM travel times via backend proxy whenever reference point changes
+  // Fetch OSRM travel times directly from browser (with in-memory Map cache & Haversine fallback)
   useEffect(() => {
     if (!activeReferencePoint || activeReferencePoint.id === 'none') {
       setTravelTimes({});
       return;
     }
 
+    const cacheKey = `${activeReferencePoint.id}::${baseNeighborhoods.length}`;
+    const cached = travelTimesClientCache.get(cacheKey);
+    if (cached) {
+      setTravelTimes(cached);
+      return;
+    }
+
     let cancelled = false;
     const controller = new AbortController();
 
+    const buildFallbackTravelMap = (): Record<string, TravelEstimate> => {
+      const fallbackMap: Record<string, TravelEstimate> = {};
+      baseNeighborhoods.forEach((n) => {
+        const km = calculateDistanceKm(
+          activeReferencePoint.lat,
+          activeReferencePoint.lng,
+          n.lat,
+          n.lng
+        );
+        fallbackMap[n.id] = estimateFallbackTravelMinutes(km);
+      });
+      return fallbackMap;
+    };
+
     const fetchTravelTimes = async () => {
       try {
-        const res = await axios.post<{ estimates?: Record<string, TravelEstimate> }>(
-          '/api/travel-times',
-          {
-            origin: { lat: activeReferencePoint.lat, lng: activeReferencePoint.lng },
-            destinations: baseNeighborhoods.map((n) => ({
-              id: n.id,
-              lat: n.lat,
-              lng: n.lng,
-            })),
-          },
-          { signal: controller.signal, timeout: 10000 }
-        );
-        if (!cancelled && res.data?.estimates) {
-          setTravelTimes(res.data.estimates);
+        const cappedDest = baseNeighborhoods.slice(0, 60);
+        const coords = [
+          `${activeReferencePoint.lng},${activeReferencePoint.lat}`,
+          ...cappedDest.map((n) => `${n.lng},${n.lat}`),
+        ].join(';');
+        const destIndices = cappedDest.map((_, idx) => idx + 1).join(';');
+        const osrmUrl = `https://router.project-osrm.org/table/v1/driving/${coords}?sources=0&destinations=${destIndices}&annotations=duration,distance`;
+
+        const res = await axios.get<{
+          durations?: Array<Array<number | null>>;
+          distances?: Array<Array<number | null>>;
+        }>(osrmUrl, {
+          signal: controller.signal,
+          timeout: 4500,
+        });
+
+        const durations = res.data?.durations?.[0] || [];
+        const distances = res.data?.distances?.[0] || [];
+        const estimates: Record<string, TravelEstimate> = buildFallbackTravelMap();
+
+        cappedDest.forEach((dest, i) => {
+          const straightKm = calculateDistanceKm(
+            activeReferencePoint.lat,
+            activeReferencePoint.lng,
+            dest.lat,
+            dest.lng
+          );
+          const osrmDurationSec = durations[i];
+          const osrmDistanceMeters = distances[i];
+
+          if (
+            typeof osrmDurationSec === 'number' &&
+            Number.isFinite(osrmDurationSec) &&
+            typeof osrmDistanceMeters === 'number' &&
+            Number.isFinite(osrmDistanceMeters)
+          ) {
+            const roadKm = Math.max(straightKm, osrmDistanceMeters / 1000);
+            const drivingMinutes = Math.max(2, Math.round(osrmDurationSec / 60));
+            const walkingMinutes = Math.max(3, Math.round((roadKm / 4.8) * 60));
+            estimates[dest.id] = {
+              distanceKm: Number(straightKm.toFixed(2)),
+              drivingMinutes,
+              walkingMinutes,
+              source: 'osrm',
+            };
+          }
+        });
+
+        if (!cancelled) {
+          travelTimesClientCache.set(cacheKey, estimates);
+          setTravelTimes(estimates);
         }
       } catch {
         if (!cancelled) {
-          // Graceful Haversine fallback already handled per card/marker
-          const fallbackMap: Record<string, TravelEstimate> = {};
-          baseNeighborhoods.forEach((n) => {
-            const R = 6371;
-            const dLat = ((n.lat - activeReferencePoint.lat) * Math.PI) / 180;
-            const dLon = ((n.lng - activeReferencePoint.lng) * Math.PI) / 180;
-            const a =
-              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos((activeReferencePoint.lat * Math.PI) / 180) *
-                Math.cos((n.lat * Math.PI) / 180) *
-                Math.sin(dLon / 2) *
-                Math.sin(dLon / 2);
-            const km = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-            fallbackMap[n.id] = estimateFallbackTravelMinutes(km);
-          });
+          const fallbackMap = buildFallbackTravelMap();
+          travelTimesClientCache.set(cacheKey, fallbackMap);
           setTravelTimes(fallbackMap);
         }
       }
@@ -418,7 +466,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 4: Dedicated Community Reviews Page (backed by data/feedback.json) */}
+        {/* Tab 4: Dedicated Community Reviews Page (Client-Side localStorage + defaultFeedback.json) */}
         {activeTab === 'reviews' && (
           <CommunityReviewsPage
             neighborhoods={neighborhoods}

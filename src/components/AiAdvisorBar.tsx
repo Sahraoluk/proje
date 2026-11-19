@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
+import { GoogleGenAI, Type } from '@google/genai';
 import { NeighborhoodData } from '../types';
 import {
   Sparkles,
   Send,
   AlertCircle,
-  MapPin,
   ShieldCheck,
   Coins,
   TrainFront,
@@ -23,6 +23,13 @@ interface RecommendationItem {
   neighborhood: NeighborhoodData;
   reason: string;
 }
+
+interface CachedAdvisorResponse {
+  summary: string;
+  recommendations: Array<{ id: string; reason: string }>;
+}
+
+const advisorClientCache = new Map<string, CachedAdvisorResponse>();
 
 function buildLocalFallbackRecommendations(
   query: string,
@@ -151,6 +158,13 @@ export const AiAdvisorBar: React.FC<AiAdvisorBarProps> = ({
   const [warning, setWarning] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
 
+  const applyFallback = (trimmedQuery: string, infoNote?: string) => {
+    const fallback = buildLocalFallbackRecommendations(trimmedQuery, neighborhoods);
+    setWarning(infoNote || null);
+    setSummary(fallback.summary);
+    setRecommendations(fallback.items);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = query.trim();
@@ -159,8 +173,42 @@ export const AiAdvisorBar: React.FC<AiAdvisorBarProps> = ({
     setIsLoading(true);
     setWarning(null);
 
+    const apiKey = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+      applyFallback(trimmed);
+      setIsLoading(false);
+      return;
+    }
+
+    const cacheKey = `${trimmed.toLocaleLowerCase('tr-TR')}::${neighborhoods
+      .slice(0, 10)
+      .map((n) => `${n.id}:${n.livabilityScore}`)
+      .join(',')}`;
+
+    const cached = advisorClientCache.get(cacheKey);
+    if (cached) {
+      const mappedCached: RecommendationItem[] = [];
+      for (const rec of cached.recommendations) {
+        const match = neighborhoods.find((n) => n.id === rec.id);
+        if (match) {
+          mappedCached.push({
+            neighborhood: match,
+            reason: rec.reason || match.verdictSummary,
+          });
+        }
+      }
+      if (mappedCached.length > 0) {
+        setSummary(cached.summary);
+        setRecommendations(mappedCached.slice(0, 3));
+        setIsLoading(false);
+        return;
+      }
+    }
+
     try {
-      const compactNeighborhoods = neighborhoods.map((n) => ({
+      const ai = new GoogleGenAI({ apiKey });
+
+      const condensedList = neighborhoods.map((n) => ({
         id: n.id,
         name: n.name,
         district: n.district,
@@ -169,39 +217,73 @@ export const AiAdvisorBar: React.FC<AiAdvisorBarProps> = ({
         transportScore: n.transportScore,
         educationScore: n.educationScore,
         entertainmentScore: n.entertainmentScore,
-        economyScore: n.economyScore,
-        averageRent: n.averageRent,
-        crimeRateCategory: n.crimeRateCategory,
-        nearestMetroStation: n.nearestMetroStation,
-        metroLines: n.metroLines,
-        vibe: n.vibe,
-        idealFor: n.idealFor,
+        averageRentTL: n.averageRent,
+        crimeRisk: n.crimeRateCategory,
+        metro: n.nearestMetroStation || 'Otobüs',
+        lines: n.metroLines || [],
+        idealFor: n.idealFor || [],
+        vibe: n.vibe || '',
       }));
 
-      const res = await fetch('/api/advisor', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: trimmed,
-          neighborhoods: compactNeighborhoods,
-        }),
+      const prompt = `Sen Ankara kent yaşamı ve mahalle güvenliği uzmanısın.
+Kullanıcının talebi: "${trimmed}"
+
+Aşağıdaki Ankara mahalle veri setini analiz et ve kullanıcının bütçe, güvenlik, ulaşım/metro, eğitim, sosyal yaşam veya semt tercihine en uygun tam olarak 3 mahalleyi seç.
+Sadece veri setinde var olan "id" değerlerini döndür. Her mahalle için kullanıcının kriterlerine doğrudan değinen kısa, net ve Türkçe bir gerekçe (en fazla 1-2 cümle) yaz.
+
+Mahalle Veri Seti:
+${JSON.stringify(condensedList)}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-4-hydrogen',
+        contents: prompt,
+        config: {
+          systemInstruction:
+            'Yanıtı yalnızca geçerli JSON olarak ver. Türkçe karakterleri (ç, ğ, ı, İ, ö, ş, ü) doğru kullan.',
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              summary: {
+                type: Type.STRING,
+                description: 'Kullanıcının sorgusuna yönelik 1 cümlelik genel değerlendirme.',
+              },
+              recommendations: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: {
+                      type: Type.STRING,
+                      description: 'Veri setindeki mahalle id değeri.',
+                    },
+                    reason: {
+                      type: Type.STRING,
+                      description: 'Bu mahallenin neden önerildiğini açıklayan kısa Türkçe gerekçe.',
+                    },
+                  },
+                  required: ['id', 'reason'],
+                },
+              },
+            },
+            required: ['summary', 'recommendations'],
+          },
+        },
       });
 
-      const data = await res.json();
+      const rawText = (response.text ?? '{}').trim();
+      const parsed = JSON.parse(rawText) as {
+        summary?: string;
+        recommendations?: Array<{ id: string; reason?: string }>;
+      };
 
-      if (!res.ok || !Array.isArray(data.recommendations)) {
-        const fallback = buildLocalFallbackRecommendations(trimmed, neighborhoods);
-        setWarning(
-          data?.message ||
-            'AI servisine ulaşılamadı. Yerel filtreleme ile en uygun öneriler listelendi.'
-        );
-        setSummary(fallback.summary);
-        setRecommendations(fallback.items);
+      if (!Array.isArray(parsed.recommendations) || parsed.recommendations.length === 0) {
+        applyFallback(trimmed);
         return;
       }
 
       const mapped: RecommendationItem[] = [];
-      for (const rec of data.recommendations) {
+      for (const rec of parsed.recommendations) {
         const match = neighborhoods.find((n) => n.id === rec.id);
         if (match) {
           mapped.push({
@@ -212,21 +294,25 @@ export const AiAdvisorBar: React.FC<AiAdvisorBarProps> = ({
       }
 
       if (mapped.length === 0) {
-        const fallback = buildLocalFallbackRecommendations(trimmed, neighborhoods);
-        setWarning('AI yanıtı yerel veri ile eşleştirilemedi; yerel öneriler gösteriliyor.');
-        setSummary(fallback.summary);
-        setRecommendations(fallback.items);
+        applyFallback(trimmed);
       } else {
-        setSummary(data.summary || 'Kriterlerinize en uygun 3 mahalle önerisi:');
+        const resolvedSummary =
+          parsed.summary || 'Kriterlerinize en uygun 3 mahalle önerisi:';
+        advisorClientCache.set(cacheKey, {
+          summary: resolvedSummary,
+          recommendations: mapped.slice(0, 3).map((m) => ({
+            id: m.neighborhood.id,
+            reason: m.reason,
+          })),
+        });
+        setSummary(resolvedSummary);
         setRecommendations(mapped.slice(0, 3));
       }
     } catch {
-      const fallback = buildLocalFallbackRecommendations(trimmed, neighborhoods);
-      setWarning(
-        'AI servisi şu an yanıt vermiyor. Yerel akıllı eşleştirme ile öneriler oluşturuldu.'
+      applyFallback(
+        trimmed,
+        'AI kotası veya ağ kısıtı nedeniyle yerel akıllı eşleştirme algoritmasıyla en uygun öneriler sunuldu.'
       );
-      setSummary(fallback.summary);
-      setRecommendations(fallback.items);
     } finally {
       setIsLoading(false);
     }

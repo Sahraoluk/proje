@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FeedbackItem, NeighborhoodData } from '../types';
-import { MessageSquare, Send, Loader2, User } from 'lucide-react';
+import { MessageSquare, Send, User } from 'lucide-react';
+import {
+  FEEDBACK_UPDATED_EVENT,
+  loadAllFeedback,
+  saveFeedbackItem,
+} from '../utils/feedbackStorage';
 
 interface FeedbackDraft {
   name: string;
@@ -21,38 +26,28 @@ export const UserFeedback: React.FC<{ neighborhood: NeighborhoodData; onUpdate: 
     transport: 75,
     livability: 75,
   });
-  const [reviews, setReviews] = useState<FeedbackItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<FeedbackItem[]>(() =>
+    loadAllFeedback(neighborhood.id)
+  );
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadReviews = async () => {
-      setIsLoading(true);
-      try {
-        const res = await fetch(
-          `/api/feedback?neighborhoodId=${encodeURIComponent(neighborhood.id)}`
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!cancelled && Array.isArray(data.items)) {
-          setReviews(data.items);
-        }
-      } catch {
-        // Silent network fallback
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    };
-    loadReviews();
-    return () => {
-      cancelled = true;
-    };
+  const refreshReviews = useCallback(() => {
+    setReviews(loadAllFeedback(neighborhood.id));
   }, [neighborhood.id]);
 
-  const handleSubmit = async () => {
+  useEffect(() => {
+    refreshReviews();
+    const handleSync = () => refreshReviews();
+    window.addEventListener(FEEDBACK_UPDATED_EVENT, handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener(FEEDBACK_UPDATED_EVENT, handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [refreshReviews]);
+
+  const handleSubmit = () => {
     const trimmedComment = feedback.comment.trim();
     if (!trimmedComment) {
       setErrorNotice('Lütfen mahalle hakkında kısa bir yorum yazın.');
@@ -60,39 +55,21 @@ export const UserFeedback: React.FC<{ neighborhood: NeighborhoodData; onUpdate: 
       return;
     }
 
-    setIsSubmitting(true);
     setErrorNotice(null);
+    const saved = saveFeedbackItem({
+      neighborhoodId: neighborhood.id,
+      name: feedback.name,
+      comment: trimmedComment,
+      safety: feedback.safety,
+      transport: feedback.transport,
+      livability: feedback.livability,
+    });
 
-    try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          neighborhoodId: neighborhood.id,
-          name: feedback.name.trim() || 'Anonim Ankara Sakini',
-          comment: trimmedComment,
-          safety: feedback.safety,
-          transport: feedback.transport,
-          livability: feedback.livability,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.item) {
-        setErrorNotice(data?.message || 'Yorum sunucuya kaydedilemedi.');
-        return;
-      }
-
-      setReviews((prev) => [data.item, ...prev]);
-      setFeedback({ name: '', comment: '', safety: 75, transport: 75, livability: 75 });
-      setSavedNotice('Görüşünüz kalıcı olarak kaydedildi!');
-      onUpdate();
-      setTimeout(() => setSavedNotice(null), 3000);
-    } catch {
-      setErrorNotice('Sunucu bağlantısı kurulamadı.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    setReviews((prev) => [saved, ...prev.filter((item) => item.id !== saved.id)]);
+    setFeedback({ name: '', comment: '', safety: 75, transport: 75, livability: 75 });
+    setSavedNotice('Görüşünüz tarayıcınıza kalıcı olarak kaydedildi!');
+    onUpdate();
+    setTimeout(() => setSavedNotice(null), 3000);
   };
 
   const getSliderColor = (val: number) => {
@@ -119,12 +96,7 @@ export const UserFeedback: React.FC<{ neighborhood: NeighborhoodData; onUpdate: 
       </div>
 
       {/* Existing Persisted Reviews List */}
-      {isLoading ? (
-        <div className="flex items-center gap-2 text-xs text-teal-200/70 py-2">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-[#e8a0b2]" />
-          <span>Yorumlar yükleniyor...</span>
-        </div>
-      ) : reviews.length > 0 ? (
+      {reviews.length > 0 ? (
         <div className="space-y-2.5 max-h-52 overflow-y-auto pr-1">
           {reviews.map((item) => (
             <div
@@ -202,20 +174,10 @@ export const UserFeedback: React.FC<{ neighborhood: NeighborhoodData; onUpdate: 
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={isSubmitting}
-          className="w-full py-2 bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] hover:brightness-105 disabled:opacity-60 text-slate-950 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
+          className="w-full py-2 bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] hover:brightness-105 text-slate-950 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5"
         >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Kaydediliyor...</span>
-            </>
-          ) : (
-            <>
-              <Send className="w-3.5 h-3.5" />
-              <span>Yorumu Gönder & Kaydet</span>
-            </>
-          )}
+          <Send className="w-3.5 h-3.5" />
+          <span>Yorumu Gönder & Kaydet</span>
         </button>
       </div>
     </div>

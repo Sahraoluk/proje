@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FeedbackItem, NeighborhoodData } from '../types';
 import {
   MessageSquare,
@@ -7,7 +7,6 @@ import {
   Search,
   MapPin,
   Download,
-  Loader2,
   CheckCircle2,
   AlertCircle,
   ShieldCheck,
@@ -16,6 +15,11 @@ import {
   FileJson,
   ChevronRight,
 } from 'lucide-react';
+import {
+  FEEDBACK_UPDATED_EVENT,
+  loadAllFeedback,
+  saveFeedbackItem,
+} from '../utils/feedbackStorage';
 
 interface CommunityReviewsPageProps {
   neighborhoods: NeighborhoodData[];
@@ -26,9 +30,7 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
   neighborhoods,
   onSelectNeighborhood,
 }) => {
-  const [reviews, setReviews] = useState<FeedbackItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<FeedbackItem[]>(() => loadAllFeedback());
 
   // Form state
   const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string>(
@@ -52,25 +54,20 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
     return map;
   }, [neighborhoods]);
 
-  const loadAllReviews = async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/feedback');
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.items)) {
-        setReviews(data.items);
-      }
-    } catch {
-      // Silent network error handling
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const refreshReviews = useCallback(() => {
+    setReviews(loadAllFeedback());
+  }, []);
 
   useEffect(() => {
-    loadAllReviews();
-  }, []);
+    refreshReviews();
+    const handleSync = () => refreshReviews();
+    window.addEventListener(FEEDBACK_UPDATED_EVENT, handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener(FEEDBACK_UPDATED_EVENT, handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [refreshReviews]);
 
   useEffect(() => {
     if (!selectedNeighborhoodId && neighborhoods.length > 0) {
@@ -78,7 +75,7 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
     }
   }, [neighborhoods, selectedNeighborhoodId]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -93,40 +90,23 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          neighborhoodId: selectedNeighborhoodId,
-          name: name.trim() || 'Anonim Ankara Sakini',
-          comment: trimmedComment,
-          safety,
-          transport,
-          livability,
-        }),
-      });
+    const saved = saveFeedbackItem({
+      neighborhoodId: selectedNeighborhoodId,
+      name,
+      comment: trimmedComment,
+      safety,
+      transport,
+      livability,
+    });
 
-      const data = await res.json();
-      if (!res.ok || !data.item) {
-        setErrorMsg(data?.message || 'Yorum JSON dosyasına kaydedilemedi.');
-        return;
-      }
-
-      setReviews((prev) => [data.item, ...prev]);
-      setName('');
-      setComment('');
-      setSafety(80);
-      setTransport(80);
-      setLivability(80);
-      setSuccessMsg('Yorumunuz data/feedback.json dosyasına kalıcı olarak kaydedildi!');
-      setTimeout(() => setSuccessMsg(null), 4000);
-    } catch {
-      setErrorMsg('Sunucuya bağlanılamadı.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    setReviews((prev) => [saved, ...prev.filter((item) => item.id !== saved.id)]);
+    setName('');
+    setComment('');
+    setSafety(80);
+    setTransport(80);
+    setLivability(80);
+    setSuccessMsg('Yorumunuz tarayıcınıza kalıcı olarak kaydedildi!');
+    setTimeout(() => setSuccessMsg(null), 4000);
   };
 
   const handleDownloadJson = () => {
@@ -194,18 +174,15 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[#f3c1cd] font-mono text-[11px] font-bold uppercase tracking-wider">
             <FileJson className="w-3.5 h-3.5 text-[#e8a0b2]" />
-            <span>data/feedback.json Kalıcı Topluluk Arşivi</span>
+            <span>Yerel Kalıcı Topluluk Arşivi</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-display font-extrabold text-white">
             Ankara Mahalleleri Kullanıcı Yorumları
           </h2>
           <p className="text-xs sm:text-sm text-teal-200/75 max-w-2xl">
-            Mahalle sakinlerinin gerçek deneyimlerini okuyun, yaşadığınız veya incelediğiniz mahalle
-            hakkında yorum bırakın. Tüm değerlendirmeler sunucudaki özel{' '}
-            <code className="px-1.5 py-0.5 rounded bg-[#061317] text-[#f3c1cd] font-mono text-[11px]">
-              feedback.json
-            </code>{' '}
-            dosyasına kaydedilir.
+            Mahalle sakinlerinin deneyimlerini okuyun, yaşadığınız veya incelediğiniz mahalle
+            hakkında yorum bırakın. Tüm değerlendirmeler tarayıcınızda kalıcı olarak saklanır ve
+            dilediğinizde JSON olarak dışa aktarılabilir.
           </p>
         </div>
 
@@ -251,7 +228,7 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
             <div>
               <h3 className="font-display font-bold text-base text-white">Yeni Yorum Ekle</h3>
               <p className="text-[11px] text-teal-200/70">
-                Görüşünüz anında JSON dosyasına kaydedilir
+                Görüşünüz anında yerel arşive kaydedilir
               </p>
             </div>
           </div>
@@ -374,20 +351,10 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 disabled:opacity-60 text-slate-950 text-xs font-extrabold shadow-md shadow-[#e8a0b2]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 text-slate-950 text-xs font-extrabold shadow-md shadow-[#e8a0b2]/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>JSON Dosyasına Kaydediliyor...</span>
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                <span>Yorumu Gönder & JSON'a Kaydet</span>
-              </>
-            )}
+            <Send className="w-4 h-4" />
+            <span>Yorumu Gönder & Kaydet</span>
           </button>
         </form>
 
@@ -421,12 +388,7 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
           </div>
 
           {/* Reviews Feed */}
-          {isLoading ? (
-            <div className="rounded-3xl glass-panel border border-teal-900/70 p-10 flex items-center justify-center gap-2 text-xs text-teal-200/75">
-              <Loader2 className="w-4 h-4 animate-spin text-[#e8a0b2]" />
-              <span>Kayıtlı kullanıcı yorumları yükleniyor...</span>
-            </div>
-          ) : filteredReviews.length === 0 ? (
+          {filteredReviews.length === 0 ? (
             <div className="rounded-3xl glass-panel border border-teal-900/70 p-10 text-center space-y-2">
               <MessageSquare className="w-10 h-10 text-[#e8a0b2]/50 mx-auto" />
               <h4 className="font-display font-bold text-sm text-white">
@@ -436,7 +398,7 @@ export const CommunityReviewsPage: React.FC<CommunityReviewsPageProps> = ({
               </h4>
               <p className="text-xs text-teal-200/70 max-w-md mx-auto">
                 {reviews.length === 0
-                  ? 'Sol taraftaki formu kullanarak ilk mahalle yorumunu ekleyin; yorumunuz JSON arşivine kaydedilecektir.'
+                  ? 'Sol taraftaki formu kullanarak ilk mahalle yorumunu ekleyin; yorumunuz tarayıcı arşivine kaydedilecektir.'
                   : 'Farklı bir mahalle seçebilir veya arama metnini temizleyebilirsiniz.'}
               </p>
             </div>
