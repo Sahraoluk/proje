@@ -4,11 +4,12 @@ Ankara'nın 25 ilçesi ve öne çıkan mahallelerine ait güvenlik, EGO toplu ta
 
 Öne Çıkan Özellikler ve Güncellemeler:
 
-Etkileşimli Harita & Raylı Sistemler: Renk kodlu güvenlik pinleri, haritada açılıp kapanabilen M1-M4 Metro, Ankaray ve Başkentray hatları, Ankara dışı tıklama uyarısı ve CSV/JSON veri yükleme desteği.
+Etkileşimli Harita & Raylı Sistemler: Renk kodlu güvenlik pinleri, haritada açılıp kapanabilen M1-M4 Metro, Ankaray ve Başkentray hatları, Ankara dışı bir yere tıklama olduğunda uyarı verme.
 
 AI Mahalle Danışmanı: Doğal dildeki aramaları analiz ederek bütçe ve beklentilere en uygun 3 mahalleyi gerekçeleriyle öneren yapay zeka desteği.
 
 Mesafe & Sıralama Analizi: Kızılay, üniversite kampüsleri ve hastaneler gibi referans noktalara kuş uçuşu mesafe (km) hesaplama, gelişmiş sıralama seçenekleri ve 25 ilçeye özel özet kartlar.
 
 Yeni Arayüz & Özel Logo: Uzun incelemelerde göz yormayan Midnight Teal & Terracotta (gece petrolü ve sıcak bakır) teması ile Atakule ve kalkan silüetini birleştiren yeni logo tasarımı.
-Kullanıcı yorumlarını alıp kendi özel JSON dosyasında kayıtta tutar.
+Hakkında kısmı ekolendi.
+Haritada arama yapıldıktan sonra tekrardan Ankara haritasına dönebilme ayrıca haritada kütüphaneleri, hastaneleri, parkları vb. yerleri görebilme eklenildi. 
