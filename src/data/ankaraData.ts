@@ -1,9 +1,13 @@
-import { 
-  NeighborhoodData, 
-  DistrictSummary, 
-  HistoricalSafetyPoint, 
+import {
+  NeighborhoodData,
+  DistrictSummary,
+  HistoricalSafetyPoint,
   EgoTransportItem,
-  LayerType
+  LayerType,
+  ScoreWeights,
+  PoiCategory,
+  PoiItem,
+  TravelEstimate,
 } from '../types';
 
 // 1. Statbase Primary Data (User attachment: indicator_553323_points_primary_data__statbase_9b71607a.png)
@@ -1650,6 +1654,53 @@ export const INITIAL_FILTER_STATE: FilterState = {
   selectedReferencePointId: 'none',
 };
 
+export const DEFAULT_SCORE_WEIGHTS: ScoreWeights = {
+  safety: 30,
+  transport: 25,
+  economy: 25,
+  entertainment: 20,
+};
+
+export function normalizeScoreWeights(weights: ScoreWeights): ScoreWeights {
+  const s = Math.max(0, weights.safety);
+  const t = Math.max(0, weights.transport);
+  const e = Math.max(0, weights.economy);
+  const ent = Math.max(0, weights.entertainment);
+  const total = s + t + e + ent;
+  if (total <= 0) {
+    return { safety: 25, transport: 25, economy: 25, entertainment: 25 };
+  }
+  return {
+    safety: (s / total) * 100,
+    transport: (t / total) * 100,
+    economy: (e / total) * 100,
+    entertainment: (ent / total) * 100,
+  };
+}
+
+export function isCustomWeightsActive(weights: ScoreWeights): boolean {
+  return (
+    weights.safety !== DEFAULT_SCORE_WEIGHTS.safety ||
+    weights.transport !== DEFAULT_SCORE_WEIGHTS.transport ||
+    weights.economy !== DEFAULT_SCORE_WEIGHTS.economy ||
+    weights.entertainment !== DEFAULT_SCORE_WEIGHTS.entertainment
+  );
+}
+
+export function computeWeightedLivability(
+  n: NeighborhoodData,
+  weights: ScoreWeights
+): number {
+  const norm = normalizeScoreWeights(weights);
+  const raw =
+    (n.safetyScore * norm.safety +
+      n.transportScore * norm.transport +
+      n.economyScore * norm.economy +
+      n.entertainmentScore * norm.entertainment) /
+    100;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
 // Dangerous neighborhood rule: high crime category OR safetyScore < 55
 export const isDangerousNeighborhood = (n: NeighborhoodData): boolean => {
   const crime = (n?.crimeRateCategory ?? '').toLowerCase();
@@ -1677,13 +1728,20 @@ export const getScoreLabel = (score: number, isDangerous: boolean = false): stri
 
 export const getLayerValue = (layer: LayerType, n: NeighborhoodData): number => {
   switch (layer) {
-    case 'livability': return n.livabilityScore;
-    case 'safety': return n.safetyScore;
-    case 'education': return n.educationScore;
-    case 'transport': return n.transportScore;
-    case 'entertainment': return n.entertainmentScore;
-    case 'economy': return n.economyScore;
-    default: return n.livabilityScore;
+    case 'livability':
+      return n.livabilityScore;
+    case 'safety':
+      return n.safetyScore;
+    case 'education':
+      return n.educationScore;
+    case 'transport':
+      return n.transportScore;
+    case 'entertainment':
+      return n.entertainmentScore;
+    case 'economy':
+      return n.economyScore;
+    default:
+      return n.livabilityScore;
   }
 };
 
@@ -1701,6 +1759,84 @@ export function calculateDistanceKm(lat1: number, lon1: number, lat2: number, lo
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
+
+export function estimateFallbackTravelMinutes(distanceKm: number): TravelEstimate {
+  const roadDistance = distanceKm * 1.25;
+  const drivingMinutes = Math.max(3, Math.round((roadDistance / 34) * 60));
+  const walkingMinutes = Math.max(4, Math.round((roadDistance / 4.8) * 60));
+  return {
+    distanceKm,
+    walkingMinutes,
+    drivingMinutes,
+    source: 'fallback',
+  };
+}
+
+export const POI_CATEGORY_META: Record<
+  PoiCategory,
+  { label: string; color: string; shortLabel: string }
+> = {
+  hospital: { label: 'Hastaneler', color: '#fb7185', shortLabel: 'Hastane' },
+  library: { label: 'Kütüphaneler', color: '#38bdf8', shortLabel: 'Kütüphane' },
+  park: { label: 'Parklar', color: '#4ade80', shortLabel: 'Park' },
+  police: { label: 'Polis Merkezleri', color: '#818cf8', shortLabel: 'Polis' },
+  veterinary: { label: 'Veteriner / Besleme', color: '#f3c1cd', shortLabel: 'Veteriner' },
+};
+
+export const ANKARA_POI_FALLBACKS: Record<PoiCategory, PoiItem[]> = {
+  hospital: [
+    { id: 'poi-hosp-1', name: 'Ankara Bilkent Şehir Hastanesi', category: 'hospital', lat: 39.9035, lng: 32.7528, district: 'Çankaya' },
+    { id: 'poi-hosp-2', name: 'Ankara Etlik Şehir Hastanesi', category: 'hospital', lat: 39.9675, lng: 32.8318, district: 'Yenimahalle' },
+    { id: 'poi-hosp-3', name: 'Hacettepe Üniversitesi Hastanesi', category: 'hospital', lat: 39.9322, lng: 32.8617, district: 'Altındağ' },
+    { id: 'poi-hosp-4', name: 'Ankara Üniversitesi İbn-i Sina Hastanesi', category: 'hospital', lat: 39.9329, lng: 32.8573, district: 'Altındağ' },
+    { id: 'poi-hosp-5', name: 'Güven Hastanesi (Kavaklıdere)', category: 'hospital', lat: 39.9073, lng: 32.8548, district: 'Çankaya' },
+    { id: 'poi-hosp-6', name: 'Gazi Üniversitesi Hastanesi', category: 'hospital', lat: 39.9383, lng: 32.8208, district: 'Yenimahalle' },
+    { id: 'poi-hosp-7', name: 'Etimesgut Şehit Sait Ertürk Devlet Hastanesi', category: 'hospital', lat: 39.9562, lng: 32.6462, district: 'Etimesgut' },
+    { id: 'poi-hosp-8', name: 'Sincan Eğitim ve Araştırma Hastanesi', category: 'hospital', lat: 39.9749, lng: 32.5785, district: 'Sincan' },
+    { id: 'poi-hosp-9', name: 'Dr. Abdurrahman Yurtaslan Onkoloji Hastanesi', category: 'hospital', lat: 39.9637, lng: 32.7852, district: 'Yenimahalle' },
+  ],
+  library: [
+    { id: 'poi-lib-1', name: 'Cumhurbaşkanlığı Millet Kütüphanesi', category: 'library', lat: 39.9308, lng: 32.8012, district: 'Yenimahalle' },
+    { id: 'poi-lib-2', name: 'Milli Kütüphane (Bahçelievler)', category: 'library', lat: 39.9165, lng: 32.8266, district: 'Çankaya' },
+    { id: 'poi-lib-3', name: 'Adnan Ötüken İl Halk Kütüphanesi', category: 'library', lat: 39.9234, lng: 32.8511, district: 'Çankaya' },
+    { id: 'poi-lib-4', name: 'ODTÜ Kütüphanesi', category: 'library', lat: 39.8926, lng: 32.7845, district: 'Çankaya' },
+    { id: 'poi-lib-5', name: 'Bilkent Üniversitesi Kütüphanesi', category: 'library', lat: 39.8682, lng: 32.7489, district: 'Çankaya' },
+    { id: 'poi-lib-6', name: 'Batıkent Meydan Kütüphanesi', category: 'library', lat: 39.9665, lng: 32.7318, district: 'Yenimahalle' },
+    { id: 'poi-lib-7', name: 'Mamak Kültür Merkezi Kütüphanesi', category: 'library', lat: 39.9271, lng: 32.8935, district: 'Mamak' },
+    { id: 'poi-lib-8', name: 'Eryaman Şehit Osman Avcı Kütüphanesi', category: 'library', lat: 39.9835, lng: 32.6342, district: 'Etimesgut' },
+  ],
+  park: [
+    { id: 'poi-park-1', name: 'Kuğulu Park', category: 'park', lat: 39.9016, lng: 32.8599, district: 'Çankaya' },
+    { id: 'poi-park-2', name: 'Seğmenler Parkı', category: 'park', lat: 39.8962, lng: 32.8598, district: 'Çankaya' },
+    { id: 'poi-park-3', name: 'Dikmen Vadisi Parkı', category: 'park', lat: 39.8924, lng: 32.8473, district: 'Çankaya' },
+    { id: 'poi-park-4', name: 'Gençlik Parkı', category: 'park', lat: 39.9369, lng: 32.8505, district: 'Altındağ' },
+    { id: 'poi-park-5', name: 'Göksu Parkı', category: 'park', lat: 39.9921, lng: 32.6376, district: 'Etimesgut' },
+    { id: 'poi-park-6', name: 'Mogan Parkı', category: 'park', lat: 39.7845, lng: 32.7932, district: 'Gölbaşı' },
+    { id: 'poi-park-7', name: 'Harikalar Diyarı Parkı', category: 'park', lat: 39.9752, lng: 32.5923, district: 'Sincan' },
+    { id: 'poi-park-8', name: 'Altınpark', category: 'park', lat: 39.9612, lng: 32.8832, district: 'Altındağ' },
+    { id: 'poi-park-9', name: 'Anıtpark (Bahçelievler)', category: 'park', lat: 39.9242, lng: 32.8285, district: 'Çankaya' },
+  ],
+  police: [
+    { id: 'poi-pol-1', name: 'Ankara İl Emniyet Müdürlüğü', category: 'police', lat: 39.9465, lng: 32.8388, district: 'Yenimahalle' },
+    { id: 'poi-pol-2', name: 'Çankaya İlçe Emniyet / Kavaklıdere Polis Merkezi', category: 'police', lat: 39.9078, lng: 32.8615, district: 'Çankaya' },
+    { id: 'poi-pol-3', name: 'Kızılay Güvenpark Polis Noktası', category: 'police', lat: 39.9199, lng: 32.8533, district: 'Çankaya' },
+    { id: 'poi-pol-4', name: 'Bahçelievler Polis Merkezi Amirliği', category: 'police', lat: 39.9182, lng: 32.8195, district: 'Çankaya' },
+    { id: 'poi-pol-5', name: 'Batıkent Polis Merkezi Amirliği', category: 'police', lat: 39.9682, lng: 32.7365, district: 'Yenimahalle' },
+    { id: 'poi-pol-6', name: 'Ulus Anafartalar Polis Merkezi', category: 'police', lat: 39.9422, lng: 32.8562, district: 'Altındağ' },
+    { id: 'poi-pol-7', name: 'Eryaman Şehit Ahmet Akdemir Polis Merkezi', category: 'police', lat: 39.9852, lng: 32.6311, district: 'Etimesgut' },
+    { id: 'poi-pol-8', name: 'Çayyolu Ümitköy Polis Merkezi', category: 'police', lat: 39.8884, lng: 32.6952, district: 'Çankaya' },
+    { id: 'poi-pol-9', name: 'Mamak Boğaziçi Polis Merkezi', category: 'police', lat: 39.9245, lng: 32.9135, district: 'Mamak' },
+  ],
+  veterinary: [
+    { id: 'poi-vet-1', name: 'A.Ü. Veteriner Fakültesi Hayvan Hastanesi', category: 'veterinary', lat: 39.9585, lng: 32.8622, district: 'Altındağ' },
+    { id: 'poi-vet-2', name: 'Çankaya Belediyesi Sahipsiz Hayvan Bakımevi & Pati Noktası', category: 'veterinary', lat: 39.8525, lng: 32.8355, district: 'Çankaya' },
+    { id: 'poi-vet-3', name: 'Tunalı / Seğmenler Pati Besleme & Acil Veteriner Kliniği', category: 'veterinary', lat: 39.8982, lng: 32.8595, district: 'Çankaya' },
+    { id: 'poi-vet-4', name: 'Batıkent Hayvan Hastanesi & Besleme Parkuru', category: 'veterinary', lat: 39.9652, lng: 32.7422, district: 'Yenimahalle' },
+    { id: 'poi-vet-5', name: 'Ümitköy 7/24 Acil Veteriner Kliniği', category: 'veterinary', lat: 39.8928, lng: 32.6982, district: 'Çankaya' },
+    { id: 'poi-vet-6', name: 'Gölbaşı Eymir-Mogan Pati Besleme İstasyonu', category: 'veterinary', lat: 39.7975, lng: 32.8045, district: 'Gölbaşı' },
+    { id: 'poi-vet-7', name: 'Eryaman Göksu Pati Besleme & Veteriner Merkezi', category: 'veterinary', lat: 39.9892, lng: 32.6392, district: 'Etimesgut' },
+  ],
+};
 
 // Find closest neighborhood to an arbitrary point
 export function findClosestNeighborhood(

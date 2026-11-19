@@ -185,7 +185,6 @@ Kavaklıdere & Tunalı Hilmi,Çankaya,96,99,97,Kültür sanat, kitapçılar ve g
       if (existingIndex !== -1) {
         const target = { ...updated[existingIndex] };
         
-        // Map scores if provided
         if (row.guvenlik_skoru || row.safetyScore) {
           target.safetyScore = Number(row.guvenlik_skoru || row.safetyScore);
         }

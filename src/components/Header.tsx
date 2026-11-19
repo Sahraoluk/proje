@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Layers,
   BarChart3,
@@ -6,15 +6,20 @@ import {
   Upload,
   FileText,
   Sparkles,
+  Share2,
+  Check,
+  MessageSquare,
 } from 'lucide-react';
 import { LayerType } from '../types';
 import { BrandLogo } from './BrandLogo';
 
+export type AppTab = 'map' | 'analytics' | 'rankings' | 'reviews';
+
 interface HeaderProps {
   activeLayer: LayerType;
   onLayerChange: (layer: LayerType) => void;
-  activeTab: 'map' | 'analytics' | 'rankings';
-  onTabChange: (tab: 'map' | 'analytics' | 'rankings') => void;
+  activeTab: AppTab;
+  onTabChange: (tab: AppTab) => void;
   compareCount: number;
   onOpenCompare: () => void;
   onOpenUpload: () => void;
@@ -29,14 +34,26 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenUpload,
   onOpenReport,
 }) => {
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // Fallback ignored
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#061317]/90 backdrop-blur-md border-b border-[#e8a0b2]/25 px-4 sm:px-6 py-3 transition-all">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Zone 1: Brand Wordmark with Custom Atakule & Shield Logo */}
         <div className="flex items-center gap-3 shrink-0">
           <BrandLogo className="w-10 h-10 sm:w-11 sm:h-11" />
           <div className="flex flex-col">
-            <span className="font-display text-base sm:text-lg font-extrabold tracking-tight text-white whitespace-nowrap leading-tight">
+            <span className="font-display text-sm sm:text-lg font-extrabold tracking-tight text-white whitespace-nowrap leading-tight">
               Ankara Yaşam & Güvenlik Atlası
             </span>
             <span className="mt-0.5 inline-flex items-center w-fit px-2 py-0.5 rounded-md bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[10px] text-[#f3c1cd] font-mono font-semibold tracking-wide">
@@ -50,7 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onTabChange('map')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'map'
                 ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950 font-semibold shadow-md shadow-[#e8a0b2]/25'
                 : 'text-teal-100/80 hover:text-white hover:bg-[#e8a0b2]/15'
@@ -65,7 +82,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onTabChange('analytics')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'analytics'
                 ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950 font-semibold shadow-md shadow-[#e8a0b2]/25'
                 : 'text-teal-100/80 hover:text-white hover:bg-[#e8a0b2]/15'
@@ -80,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={() => onTabChange('rankings')}
-            className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
               activeTab === 'rankings'
                 ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950 font-semibold shadow-md shadow-[#e8a0b2]/25'
                 : 'text-teal-100/80 hover:text-white hover:bg-[#e8a0b2]/15'
@@ -91,35 +108,70 @@ export const Header: React.FC<HeaderProps> = ({
               Mahalle Karneleri
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => onTabChange('reviews')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'reviews'
+                ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950 font-semibold shadow-md shadow-[#e8a0b2]/25'
+                : 'text-teal-100/80 hover:text-white hover:bg-[#e8a0b2]/15'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <MessageSquare className="w-3.5 h-3.5" />
+              Kullanıcı Yorumları
+            </span>
+          </button>
         </nav>
 
         {/* Zone 3: Functional Actions */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Share URL Trigger */}
+          <button
+            type="button"
+            onClick={handleCopyShareLink}
+            className="hidden md:flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-teal-100 bg-[#0b1f26] hover:bg-[#e8a0b2]/15 border border-teal-900/70 hover:border-[#e8a0b2]/40 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+            title="Görünüm Bağlantısını Kopyala"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-emerald-300">Kopyalandı</span>
+              </>
+            ) : (
+              <>
+                <Share2 className="w-3.5 h-3.5 text-[#f3c1cd]" />
+                <span className="hidden xl:inline">Paylaş</span>
+              </>
+            )}
+          </button>
+
           {/* Dataset Upload Trigger */}
           <button
             type="button"
             onClick={onOpenUpload}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-50 bg-[#0b1f26] hover:bg-[#e8a0b2]/15 border border-[#e8a0b2]/30 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-teal-50 bg-[#0b1f26] hover:bg-[#e8a0b2]/15 border border-[#e8a0b2]/30 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
             title="Kendi veri setinizi yükleyin (CSV / JSON / EGO)"
           >
             <Upload className="w-3.5 h-3.5 text-[#f3c1cd]" />
-            <span className="hidden sm:inline">Veri Seti Yükle</span>
+            <span className="hidden xl:inline">Veri Yükle</span>
           </button>
 
           {/* Comparison Drawer Trigger */}
           <button
             type="button"
             onClick={onOpenCompare}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
+            className={`relative flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap cursor-pointer ${
               compareCount > 0
                 ? 'bg-[#e8a0b2]/20 text-[#f3c1cd] border-[#e8a0b2]/50'
                 : 'bg-[#0b1f26] text-teal-50 border-teal-900/70 hover:bg-[#e8a0b2]/15'
             }`}
           >
             <Scale className="w-3.5 h-3.5 text-teal-300" />
-            <span>Karşılaştır</span>
+            <span className="hidden sm:inline">Karşılaştır</span>
             {compareCount > 0 && (
-              <span className="ml-1 px-1.5 py-0.5 bg-[#e8a0b2] text-slate-950 rounded text-[10px] font-mono font-bold">
+              <span className="ml-0.5 px-1.5 py-0.5 bg-[#e8a0b2] text-slate-950 rounded text-[10px] font-mono font-bold">
                 {compareCount}
               </span>
             )}
@@ -129,7 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             type="button"
             onClick={onOpenReport}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 rounded-lg shadow-sm shadow-[#e8a0b2]/30 transition-all whitespace-nowrap cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-950 bg-gradient-to-r from-[#f3c1cd] via-[#e8a0b2] to-[#d8839a] hover:brightness-105 rounded-lg shadow-sm shadow-[#e8a0b2]/30 transition-all whitespace-nowrap cursor-pointer"
           >
             <FileText className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Rapor Al</span>
@@ -171,6 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           Mahalleler
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange('reviews')}
+          className={`flex-1 py-1.5 text-xs text-center rounded-lg font-medium transition-all ${
+            activeTab === 'reviews'
+              ? 'bg-[#e8a0b2] text-slate-950 font-bold'
+              : 'text-teal-200/70'
+          }`}
+        >
+          Yorumlar
         </button>
       </div>
     </header>

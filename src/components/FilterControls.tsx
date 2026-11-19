@@ -1,5 +1,12 @@
-import React from 'react';
-import { ANKARA_DISTRICTS, FilterState, REFERENCE_POINTS } from '../data/ankaraData';
+import React, { useState } from 'react';
+import {
+  ANKARA_DISTRICTS,
+  FilterState,
+  REFERENCE_POINTS,
+  isCustomWeightsActive,
+  normalizeScoreWeights,
+} from '../data/ankaraData';
+import { ScoreWeights } from '../types';
 import {
   Search,
   RotateCcw,
@@ -11,6 +18,11 @@ import {
   GraduationCap,
   MapPin,
   Navigation,
+  SlidersHorizontal,
+  ChevronDown,
+  ChevronUp,
+  Trees,
+  Coins,
 } from 'lucide-react';
 
 interface FilterControlsProps {
@@ -19,6 +31,9 @@ interface FilterControlsProps {
   onReset: () => void;
   totalCount: number;
   filteredCount: number;
+  scoreWeights: ScoreWeights;
+  onWeightsChange: (newWeights: ScoreWeights) => void;
+  onResetWeights: () => void;
 }
 
 export const FilterControls: React.FC<FilterControlsProps> = ({
@@ -27,7 +42,15 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
   onReset,
   totalCount,
   filteredCount,
+  scoreWeights,
+  onWeightsChange,
+  onResetWeights,
 }) => {
+  const [weightsOpen, setWeightsOpen] = useState<boolean>(false);
+
+  const normalized = normalizeScoreWeights(scoreWeights);
+  const customWeightsActive = isCustomWeightsActive(scoreWeights);
+
   const applyPreset = (preset: 'safe' | 'student' | 'family' | 'metro') => {
     if (preset === 'safe') {
       onFilterChange({
@@ -83,7 +106,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
           )}
         </div>
 
-        {/* Quick Presets */}
+        {/* Quick Presets + Custom Weighting Toggle */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
           <span className="text-[11px] font-mono text-teal-200/70 uppercase tracking-wider hidden sm:inline mr-1">
             Hızlı Profil:
@@ -120,6 +143,30 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
             <TrainFront className="w-3.5 h-3.5 text-teal-300" />
             <span>Metrolu / Raylı Hat</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setWeightsOpen((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border whitespace-nowrap transition-all cursor-pointer ${
+              weightsOpen || customWeightsActive
+                ? 'bg-[#e8a0b2]/20 text-[#f3c1cd] border-[#e8a0b2]/55 font-semibold'
+                : 'bg-[#061317]/90 text-teal-50 border-teal-900/70 hover:border-[#e8a0b2]/40'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#f3c1cd]" />
+            <span>Skor Ağırlıkları</span>
+            {customWeightsActive && (
+              <span className="px-1.5 py-0.2 rounded bg-[#e8a0b2] text-slate-950 text-[10px] font-mono font-bold">
+                Özel
+              </span>
+            )}
+            {weightsOpen ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
+
           <button
             type="button"
             onClick={onReset}
@@ -130,6 +177,131 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Collapsible Custom Weighting Panel */}
+      {weightsOpen && (
+        <div className="p-4 rounded-2xl bg-[#061317]/85 border border-[#e8a0b2]/35 space-y-3 animate-in fade-in duration-200">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-display font-bold text-[#f3c1cd] flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#e8a0b2]" />
+                <span>Kişiselleştirilmiş Yaşam Skoru Ağırlıkları (Otomatik %100 Normalize)</span>
+              </h4>
+              <p className="text-[11px] text-teal-200/70 mt-0.5">
+                Her kriteri %0–%100 arası ayarlayın; harita pin renkleri, boyutları ve sıralama anlık güncellenir.
+              </p>
+            </div>
+            {customWeightsActive && (
+              <button
+                type="button"
+                onClick={onResetWeights}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0b1f26] hover:bg-[#e8a0b2]/20 text-[#f3c1cd] border border-[#e8a0b2]/35 text-[11px] font-semibold cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Varsayılana Dön</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+            {/* Güvenlik Weight */}
+            <div className="p-2.5 rounded-xl bg-[#0b1f26]/80 border border-teal-900/70">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-teal-50 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#f3c1cd]" />
+                  Güvenlik
+                </span>
+                <span className="font-mono font-bold text-[#f3c1cd]">
+                  %{Math.round(normalized.safety)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={scoreWeights.safety}
+                onChange={(e) =>
+                  onWeightsChange({ ...scoreWeights, safety: Number(e.target.value) })
+                }
+                className="w-full accent-[#e8a0b2] bg-[#061317] h-1.5 rounded-lg cursor-pointer"
+              />
+            </div>
+
+            {/* Ulaşım Weight */}
+            <div className="p-2.5 rounded-xl bg-[#0b1f26]/80 border border-teal-900/70">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-teal-50 font-medium">
+                  <TrainFront className="w-3.5 h-3.5 text-teal-300" />
+                  Ulaşım
+                </span>
+                <span className="font-mono font-bold text-teal-300">
+                  %{Math.round(normalized.transport)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={scoreWeights.transport}
+                onChange={(e) =>
+                  onWeightsChange({ ...scoreWeights, transport: Number(e.target.value) })
+                }
+                className="w-full accent-teal-400 bg-[#061317] h-1.5 rounded-lg cursor-pointer"
+              />
+            </div>
+
+            {/* Kira / Ekonomi Weight */}
+            <div className="p-2.5 rounded-xl bg-[#0b1f26]/80 border border-teal-900/70">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-teal-50 font-medium">
+                  <Coins className="w-3.5 h-3.5 text-[#f3c1cd]" />
+                  Kira / Ekonomi
+                </span>
+                <span className="font-mono font-bold text-[#f3c1cd]">
+                  %{Math.round(normalized.economy)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={scoreWeights.economy}
+                onChange={(e) =>
+                  onWeightsChange({ ...scoreWeights, economy: Number(e.target.value) })
+                }
+                className="w-full accent-[#e8a0b2] bg-[#061317] h-1.5 rounded-lg cursor-pointer"
+              />
+            </div>
+
+            {/* Yeşil Alan / Sosyal Yaşam Weight */}
+            <div className="p-2.5 rounded-xl bg-[#0b1f26]/80 border border-teal-900/70">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="flex items-center gap-1.5 text-teal-50 font-medium">
+                  <Trees className="w-3.5 h-3.5 text-emerald-400" />
+                  Yeşil Alan & Sosyal
+                </span>
+                <span className="font-mono font-bold text-emerald-400">
+                  %{Math.round(normalized.entertainment)}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={scoreWeights.entertainment}
+                onChange={(e) =>
+                  onWeightsChange({ ...scoreWeights, entertainment: Number(e.target.value) })
+                }
+                className="w-full accent-emerald-400 bg-[#061317] h-1.5 rounded-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* District & Reference Point Selector Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-teal-900/70 text-xs">
@@ -277,6 +449,9 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
         <span>
           Toplam <strong className="text-white">{totalCount}</strong> mahalleden{' '}
           <strong className="text-[#f3c1cd]">{filteredCount}</strong> tanesi filtrelendi
+          {customWeightsActive && (
+            <span className="ml-2 text-[#e8a0b2]">(Özel skor ağırlıkları aktif)</span>
+          )}
         </span>
         {(filteredCount < totalCount ||
           filter.selectedDistrict !== 'all' ||

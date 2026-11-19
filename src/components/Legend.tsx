@@ -2,9 +2,9 @@ import React from 'react';
 
 export const Legend: React.FC = () => {
   return (
-    <div className="absolute bottom-4 left-4 z-[500] bg-[#0b1f26]/90 backdrop-blur-md border border-[#e8a0b2]/30 p-3 rounded-xl shadow-xl text-xs text-teal-50 max-w-[235px] pointer-events-auto">
+    <div className="absolute bottom-4 left-4 z-[500] bg-[#0b1f26]/90 backdrop-blur-md border border-[#e8a0b2]/30 p-3 rounded-xl shadow-xl text-xs text-teal-50 max-w-[245px] pointer-events-auto">
       <h4 className="font-display font-bold text-[11px] uppercase tracking-wider text-[#f3c1cd] mb-2">
-        Harita Skala & Risk Rehberi
+        Harita Skala & Risk
       </h4>
       <div className="space-y-1.5">
         <div className="flex items-center gap-2.5">

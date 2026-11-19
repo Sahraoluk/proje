@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NeighborhoodData } from '../types';
+import { NeighborhoodData, TravelEstimate } from '../types';
 import {
   X,
   ShieldAlert,
@@ -14,12 +14,16 @@ import {
   ExternalLink,
   AlertTriangle,
   Navigation,
+  Car,
+  Footprints,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { UserFeedback } from './UserFeedback';
+import { BudgetSimulator } from './BudgetSimulator';
 import {
   ReferencePoint,
   calculateDistanceKm,
+  estimateFallbackTravelMinutes,
   isDangerousNeighborhood,
 } from '../data/ankaraData';
 
@@ -29,6 +33,7 @@ interface NeighborhoodDetailModalProps {
   onAddToCompare: (n: NeighborhoodData) => void;
   isCompared: boolean;
   referencePoint?: ReferencePoint | null;
+  travelEstimate?: TravelEstimate | null;
 }
 
 export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = ({
@@ -37,6 +42,7 @@ export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = (
   onAddToCompare,
   isCompared,
   referencePoint,
+  travelEstimate,
 }) => {
   useEffect(() => {
     if (neighborhood && (neighborhood?.livabilityScore ?? 0) >= 92) {
@@ -77,6 +83,10 @@ export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = (
   const distanceKm =
     hasReferencePoint && referencePoint
       ? calculateDistanceKm(referencePoint.lat, referencePoint.lng, lat, lng)
+      : null;
+  const effectiveTravel =
+    distanceKm !== null
+      ? travelEstimate ?? estimateFallbackTravelMinutes(distanceKm)
       : null;
 
   const getScoreColor = (score: number) => {
@@ -151,11 +161,21 @@ export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = (
               <p className="text-xs text-[#f3c1cd]/90 font-medium italic mt-1">
                 "{neighborhood?.vibe ?? 'Ankara kent yaşamı profili'}"
               </p>
-              {distanceKm !== null && referencePoint && (
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[#f3c1cd] text-xs font-mono font-semibold">
-                  <Navigation className="w-3.5 h-3.5 text-[#e8a0b2]" />
-                  <span>
-                    {referencePoint.label}: Seçili noktaya {distanceKm.toFixed(1)} km
+              {distanceKm !== null && referencePoint && effectiveTravel && (
+                <div className="mt-2 inline-flex flex-wrap items-center gap-2 px-2.5 py-1 rounded-lg bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[#f3c1cd] text-xs font-mono font-semibold">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Navigation className="w-3.5 h-3.5 text-[#e8a0b2]" />
+                    <span>
+                      {referencePoint.label}: {effectiveTravel.distanceKm.toFixed(1)} km
+                    </span>
+                  </span>
+                  <span className="text-teal-200/50">·</span>
+                  <span className="inline-flex items-center gap-1 text-teal-200">
+                    <Car className="w-3.5 h-3.5 text-teal-300" />~{effectiveTravel.drivingMinutes} dk
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-teal-200">
+                    <Footprints className="w-3.5 h-3.5 text-[#e8a0b2]" />~
+                    {effectiveTravel.walkingMinutes} dk
                   </span>
                 </div>
               )}
@@ -419,6 +439,9 @@ export const NeighborhoodDetailModal: React.FC<NeighborhoodDetailModalProps> = (
               </span>
             </div>
           </div>
+
+          {/* SECTION 3.5: YAŞAM MALİYETİ & BÜTÇE UYGUNLUK HESAPLAYICISI */}
+          <BudgetSimulator neighborhood={neighborhood} />
 
           {/* SECTION 4: ARTILAR VE EKSİLER */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

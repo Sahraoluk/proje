@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NeighborhoodData } from '../types';
 import {
   X,
@@ -12,7 +12,13 @@ import {
   Check,
   ArrowRight,
   Plus,
+  Wallet,
+  Share2,
 } from 'lucide-react';
+import {
+  calculateMonthlyBudgetFit,
+  TransitPassType,
+} from './BudgetSimulator';
 
 interface ComparisonDrawerProps {
   isOpen: boolean;
@@ -33,7 +39,21 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
   allNeighborhoods,
   onAddNeighborhood,
 }) => {
+  const [monthlyIncome, setMonthlyIncome] = useState<number>(45000);
+  const [transitType, setTransitType] = useState<TransitPassType>('full');
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
   if (!isOpen) return null;
+
+  const handleCopyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // Ignore clipboard failure
+    }
+  };
 
   const topScorer = [...comparedNeighborhoods].sort(
     (a, b) => b.livabilityScore - a.livabilityScore
@@ -65,7 +85,7 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-5 bg-[#0b1f26]/95 border-b border-[#e8a0b2]/25">
+        <div className="flex items-center justify-between p-5 bg-[#0b1f26]/95 border-b border-[#e8a0b2]/25 gap-3">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/40">
               <Scale className="w-5 h-5" />
@@ -75,18 +95,38 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
                 Bölgesel Karşılaştırma Analizi
               </h3>
               <p className="text-xs text-teal-200/70">
-                Seçtiğiniz Ankara mahallelerini yaşam, güvenlik, eğitim, ulaşım ve eğlence yönünden
-                kıyaslayın
+                Seçtiğiniz Ankara mahallelerini yaşam, güvenlik, ulaşım ve aylık bütçe uygunluğu yönünden kıyaslayın
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-teal-200/70 hover:text-white hover:bg-teal-500/20 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {comparedNeighborhoods.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyShareLink}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#061317] hover:bg-[#e8a0b2]/15 text-xs font-semibold text-teal-100 border border-[#e8a0b2]/35 transition-colors cursor-pointer"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300">Bağlantı Kopyalandı</span>
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-3.5 h-3.5 text-[#f3c1cd]" />
+                    <span className="hidden sm:inline">Paylaşım Linkini Kopyala</span>
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl text-teal-200/70 hover:text-white hover:bg-teal-500/20 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body Content */}
@@ -138,6 +178,70 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
                 </div>
               )}
 
+              {/* Shared Budget Fit Controls */}
+              <div className="p-4 rounded-2xl bg-[#061317]/85 border border-[#e8a0b2]/30 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#f3c1cd]">
+                  <Wallet className="w-4 h-4 text-[#e8a0b2]" />
+                  <span>Karşılaştırmalı Bütçe Uygunluk Ayarları:</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="text-teal-200/75">Aylık Gelir / Burs:</span>
+                    <input
+                      type="number"
+                      min={5000}
+                      max={500000}
+                      step={1000}
+                      value={monthlyIncome}
+                      onChange={(e) =>
+                        setMonthlyIncome(Math.max(5000, Number(e.target.value) || 5000))
+                      }
+                      className="w-28 px-2.5 py-1 rounded-lg bg-[#0b1f26] border border-[#e8a0b2]/35 text-teal-50 font-mono focus:outline-none focus:border-[#e8a0b2]"
+                    />
+                    <div className="hidden sm:flex items-center gap-1">
+                      {[25000, 45000, 70000].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setMonthlyIncome(preset)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-mono border cursor-pointer ${
+                            monthlyIncome === preset
+                              ? 'bg-[#e8a0b2]/25 text-[#f3c1cd] border-[#e8a0b2]/60'
+                              : 'bg-[#0b1f26] text-teal-200/70 border-teal-900/70'
+                          }`}
+                        >
+                          {preset / 1000}k ₺
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 bg-[#0b1f26] p-1 rounded-xl border border-teal-900/70">
+                    <button
+                      type="button"
+                      onClick={() => setTransitType('student')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                        transitType === 'student'
+                          ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950'
+                          : 'text-teal-200/75 hover:text-white'
+                      }`}
+                    >
+                      Öğrenci EGO (350 ₺)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTransitType('full')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+                        transitType === 'full'
+                          ? 'bg-gradient-to-r from-[#f3c1cd] to-[#d8839a] text-slate-950'
+                          : 'text-teal-200/75 hover:text-white'
+                      }`}
+                    >
+                      Tam EGO (1.500 ₺)
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* Side-by-Side Comparison Columns Grid */}
               <div
                 className={`grid grid-cols-1 ${
@@ -146,6 +250,7 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
               >
                 {comparedNeighborhoods.map((n) => {
                   const isTop = topScorer?.id === n.id;
+                  const budgetFit = calculateMonthlyBudgetFit(n, monthlyIncome, transitType);
                   return (
                     <div
                       key={n.id}
@@ -298,6 +403,31 @@ export const ComparisonDrawer: React.FC<ComparisonDrawerProps> = ({
                                 </span>
                               )}
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Budget Fit Summary Block */}
+                        <div className="mt-3 p-3 rounded-xl bg-[#061317]/90 border border-[#e8a0b2]/25 space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-teal-200/80 flex items-center gap-1">
+                              <Wallet className="w-3 h-3 text-[#e8a0b2]" />
+                              Aylık Gider (Kira+Aidat+EGO)
+                            </span>
+                            <strong className={`font-mono ${budgetFit.textClass}`}>
+                              {budgetFit.totalCost.toLocaleString('tr-TR')} ₺
+                            </strong>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-[#0b1f26] overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${budgetFit.barClass}`}
+                              style={{ width: `${Math.min(100, budgetFit.budgetRatio)}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] font-mono">
+                            <span className={budgetFit.textClass}>
+                              Bütçenin %{budgetFit.budgetRatio}'i
+                            </span>
+                            <span className="text-teal-200/70">{budgetFit.statusLabel}</span>
                           </div>
                         </div>
 

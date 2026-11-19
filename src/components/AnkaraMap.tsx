@@ -8,23 +8,46 @@ import {
   Popup,
   Tooltip,
   useMapEvents,
-  LayersControl,
   ZoomControl,
   useMap,
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
-import { NeighborhoodData, LayerType } from '../types';
+import {
+  NeighborhoodData,
+  LayerType,
+  PoiCategory,
+  PoiItem,
+  TravelEstimate,
+} from '../types';
 import {
   ANKARA_RAIL_LINES,
+  ANKARA_POI_FALLBACKS,
+  POI_CATEGORY_META,
   ReferencePoint,
   calculateDistanceKm,
+  estimateFallbackTravelMinutes,
   getLayerValue,
   getScoreColor,
   isDangerousNeighborhood,
 } from '../data/ankaraData';
 import { Legend } from './Legend';
-import { AlertTriangle, FileText, Scale, TrainFront, Navigation } from 'lucide-react';
+import {
+  AlertTriangle,
+  FileText,
+  Scale,
+  TrainFront,
+  Navigation,
+  MapPin,
+  Car,
+  Hospital,
+  BookOpen,
+  Trees,
+  Shield,
+  PawPrint,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 
 interface AnkaraMapProps {
   neighborhoods: NeighborhoodData[];
@@ -36,9 +59,10 @@ interface AnkaraMapProps {
   onSelectDistrict: (d: string) => void;
   onAddToCompare: (n: NeighborhoodData) => void;
   referencePoint?: ReferencePoint | null;
+  travelTimes?: Record<string, TravelEstimate>;
 }
 
-const AnkaraBounds = { minLat: 38.70, maxLat: 40.75, minLng: 30.85, maxLng: 34.05 };
+const AnkaraBounds = { minLat: 38.7, maxLat: 40.75, minLng: 30.85, maxLng: 34.05 };
 
 function MapCameraController({ target }: { target: NeighborhoodData | null }) {
   const map = useMap();
@@ -67,7 +91,7 @@ interface NeighborhoodMarkerProps {
   neighborhood: NeighborhoodData;
   activeLayer: LayerType;
   isSelected: boolean;
-  distanceKm: number | null;
+  travelEstimate: TravelEstimate | null;
   onSelectNeighborhood: (n: NeighborhoodData) => void;
   onAddToCompare: (n: NeighborhoodData) => void;
 }
@@ -76,7 +100,7 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
   neighborhood: n,
   activeLayer,
   isSelected,
-  distanceKm,
+  travelEstimate,
   onSelectNeighborhood,
   onAddToCompare,
 }) => {
@@ -86,24 +110,29 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
   const fillColor = getScoreColor(score, isDangerous);
   const haloColor = isDangerous ? '#dc2626' : fillColor;
 
+  // Dynamic marker radius proportional to active score
+  const baseRadius = Math.max(5.5, Math.min(12, 4.5 + (score / 100) * 6.5));
+  const primaryRadius = isSelected ? baseRadius + 3 : baseRadius;
+  const haloRadius = isSelected ? baseRadius + 10 : isDangerous ? baseRadius + 9 : baseRadius + 7;
+
   return (
     <React.Fragment>
       {/* Lower translucent outer halo */}
       <CircleMarker
         center={[n.lat, n.lng]}
-        radius={isSelected ? 20 : isDangerous ? 18 : 16}
+        radius={haloRadius}
         interactive={false}
         pathOptions={{
           stroke: false,
           fillColor: haloColor,
-          fillOpacity: isSelected ? 0.34 : isDangerous ? 0.28 : 0.22,
+          fillOpacity: isSelected ? 0.36 : isDangerous ? 0.28 : 0.22,
         }}
       />
 
       {/* Upper crisp primary point */}
       <CircleMarker
         center={[n.lat, n.lng]}
-        radius={isSelected ? 10 : 7}
+        radius={primaryRadius}
         pathOptions={{
           color: '#ffffff',
           weight: isSelected ? 3 : 2,
@@ -112,7 +141,7 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
         }}
       >
         <Tooltip direction="top" offset={[0, -8]} className="cyber-leaflet-tooltip" opacity={1}>
-          <div className="min-w-[165px] space-y-1">
+          <div className="min-w-[180px] space-y-1">
             <div className="flex items-center justify-between gap-2">
               <span className="font-display font-bold text-xs text-white leading-tight">
                 {n.name}
@@ -128,9 +157,13 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
               <span>{n.district}</span>
               <span>Skor: {score}/100</span>
             </div>
-            {distanceKm !== null && (
-              <div className="text-[10px] font-mono text-[#f3c1cd]">
-                Seçili noktaya {distanceKm.toFixed(1)} km
+            {travelEstimate && (
+              <div className="text-[10px] font-mono text-[#f3c1cd] flex items-center gap-2">
+                <span>{travelEstimate.distanceKm.toFixed(1)} km</span>
+                <span>·</span>
+                <span>🚗 {travelEstimate.drivingMinutes} dk</span>
+                <span>·</span>
+                <span>🚶 {travelEstimate.walkingMinutes} dk</span>
               </div>
             )}
             {isDangerous && (
@@ -143,7 +176,7 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
         </Tooltip>
 
         <Popup className="cyber-leaflet-popup">
-          <div className="min-w-[215px] space-y-2 p-1 text-teal-50">
+          <div className="min-w-[230px] space-y-2 p-1 text-teal-50">
             <div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-mono uppercase tracking-wider text-teal-200/70">
@@ -181,12 +214,23 @@ const NeighborhoodMarker: React.FC<NeighborhoodMarkerProps> = ({
                   {n.crimeRateCategory} ({n.safetyScore}/100)
                 </span>
               </div>
-              {distanceKm !== null && (
-                <div className="flex justify-between">
-                  <span className="text-teal-200/70">Mesafe:</span>
-                  <span className="font-mono font-semibold text-[#f3c1cd]">
-                    {distanceKm.toFixed(1)} km
-                  </span>
+              {travelEstimate && (
+                <div className="pt-1 border-t border-teal-900/50 space-y-0.5">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-teal-200/70">Kuş Uçuşu Mesafe:</span>
+                    <span className="font-mono font-semibold text-[#f3c1cd]">
+                      {travelEstimate.distanceKm.toFixed(1)} km
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-teal-200/70 flex items-center gap-1">
+                      <Car className="w-3 h-3 text-teal-300" />
+                      Araç / Yürüyüş:
+                    </span>
+                    <span className="font-mono font-semibold text-teal-200">
+                      ~{travelEstimate.drivingMinutes} dk / ~{travelEstimate.walkingMinutes} dk
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -231,9 +275,53 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
   onLayerChange,
   onAddToCompare,
   referencePoint,
+  travelTimes = {},
 }) => {
   const [warning, setWarning] = useState<string | null>(null);
   const [showRailLines, setShowRailLines] = useState<boolean>(false);
+  const [poiMenuOpen, setPoiMenuOpen] = useState<boolean>(false);
+  const [activePoiCategories, setActivePoiCategories] = useState<PoiCategory[]>([]);
+  const [poiDataByCategory, setPoiDataByCategory] = useState<Partial<Record<PoiCategory, PoiItem[]>>>({});
+
+  const togglePoiCategory = async (cat: PoiCategory) => {
+    const isCurrentlyActive = activePoiCategories.includes(cat);
+    if (isCurrentlyActive) {
+      setActivePoiCategories((prev) => prev.filter((c) => c !== cat));
+      return;
+    }
+
+    setActivePoiCategories((prev) => [...prev, cat]);
+    if (!poiDataByCategory[cat]) {
+      // Immediately seed curated Ankara POIs so markers render without waiting
+      setPoiDataByCategory((prev) => ({
+        ...prev,
+        [cat]: ANKARA_POI_FALLBACKS[cat],
+      }));
+      try {
+        const res = await axios.get<{ items?: PoiItem[] }>(`/api/pois?category=${cat}`);
+        const osmItems = Array.isArray(res.data?.items) ? res.data.items : [];
+        if (osmItems.length > 0) {
+          // Merge curated POIs with Overpass results (avoid duplicates by approximate coords)
+          const merged = [...ANKARA_POI_FALLBACKS[cat]];
+          for (const item of osmItems) {
+            const existsNear = merged.some(
+              (m) =>
+                Math.abs(m.lat - item.lat) < 0.002 && Math.abs(m.lng - item.lng) < 0.002
+            );
+            if (!existsNear) {
+              merged.push(item);
+            }
+          }
+          setPoiDataByCategory((prev) => ({
+            ...prev,
+            [cat]: merged,
+          }));
+        }
+      } catch {
+        // Curated POIs already loaded
+      }
+    }
+  };
 
   const handleMapClick = async (lat: number, lng: number) => {
     if (
@@ -247,16 +335,16 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
       return;
     }
     try {
-      const res = await axios.get(
-        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=tr`
+      const res = await axios.get<{ address?: { province?: string; state?: string } }>(
+        `/api/geocode/reverse?lat=${lat}&lng=${lng}`
       );
       const region = res.data?.address?.province || res.data?.address?.state;
       if (region && region !== 'Ankara') {
         setWarning(`Burası Ankara değil! (${region})`);
         setTimeout(() => setWarning(null), 3000);
       }
-    } catch (e) {
-      console.error('Geocoding failed', e);
+    } catch {
+      // Silent ignore if proxy fails transiently
     }
   };
 
@@ -269,11 +357,23 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
     { id: 'economy', label: 'Ekonomi' },
   ];
 
+  const poiOptions: { id: PoiCategory; icon: React.ReactNode }[] = [
+    { id: 'hospital', icon: <Hospital className="w-3 h-3" /> },
+    { id: 'library', icon: <BookOpen className="w-3 h-3" /> },
+    { id: 'park', icon: <Trees className="w-3 h-3" /> },
+    { id: 'police', icon: <Shield className="w-3 h-3" /> },
+    { id: 'veterinary', icon: <PawPrint className="w-3 h-3" /> },
+  ];
+
   const hasValidReferencePoint = Boolean(referencePoint && referencePoint.id !== 'none');
 
+  const activePoiItems: PoiItem[] = activePoiCategories.flatMap(
+    (cat) => poiDataByCategory[cat] || ANKARA_POI_FALLBACKS[cat] || []
+  );
+
   return (
-    <div className="relative z-0 isolate w-full h-[600px] rounded-2xl overflow-hidden shadow-2xl border border-[#e8a0b2]/30 bg-[#061317]">
-      {/* Floating Layer Selector Bar & Rail Lines Toggle */}
+    <div className="relative z-0 isolate w-full h-[610px] rounded-2xl overflow-hidden shadow-2xl border border-[#e8a0b2]/30 bg-[#061317]">
+      {/* Floating Left Control Stack: Layer Selector + Rail Lines + POI Layers */}
       <div className="absolute top-3 left-3 z-[500] max-w-[calc(100%-4.75rem)] flex flex-col gap-2">
         <div className="bg-[#0b1f26]/90 backdrop-blur-md border border-[#e8a0b2]/30 p-1.5 rounded-xl flex flex-wrap sm:flex-col gap-1 shadow-xl">
           {layerOptions.map((l) => (
@@ -292,6 +392,7 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
           ))}
         </div>
 
+        {/* Rail Lines Toggle */}
         <button
           type="button"
           onClick={() => setShowRailLines((prev) => !prev)}
@@ -303,9 +404,7 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
         >
           <TrainFront className="w-3.5 h-3.5 text-[#f3c1cd] shrink-0" />
           <span className="truncate">
-            {showRailLines
-              ? 'Raylı Sistem Hatları: Açık'
-              : 'Raylı Sistem Hatları (Metro / Ankaray / Başkentray)'}
+            {showRailLines ? 'Raylı Hatlar: Açık' : 'Raylı Sistem Hatları'}
           </span>
         </button>
 
@@ -322,6 +421,59 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
             ))}
           </div>
         )}
+
+        {/* Collapsible Environment POI Layers */}
+        <div className="bg-[#0b1f26]/92 backdrop-blur-md border border-[#e8a0b2]/30 rounded-xl shadow-xl overflow-hidden max-w-[235px]">
+          <button
+            type="button"
+            onClick={() => setPoiMenuOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between gap-2 px-3 py-2 text-[11px] font-semibold text-teal-50 hover:bg-[#e8a0b2]/10 transition-colors cursor-pointer"
+          >
+            <span className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-[#f3c1cd]" />
+              <span>Çevre POI Katmanları</span>
+              {activePoiCategories.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded bg-[#e8a0b2] text-slate-950 text-[10px] font-mono font-bold">
+                  {activePoiCategories.length}
+                </span>
+              )}
+            </span>
+            {poiMenuOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+
+          {poiMenuOpen && (
+            <div className="px-2 pb-2 pt-1 border-t border-teal-900/60 flex flex-col gap-1">
+              {poiOptions.map(({ id, icon }) => {
+                const meta = POI_CATEGORY_META[id];
+                const isActive = activePoiCategories.includes(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => togglePoiCategory(id)}
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#e8a0b2]/20 text-white border border-[#e8a0b2]/50'
+                        : 'bg-[#061317]/75 text-teal-100/80 border border-teal-900/60 hover:text-white'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: meta.color }}
+                      />
+                      {icon}
+                      <span>{meta.label}</span>
+                    </span>
+                    <span className="text-[9px] font-mono opacity-80">
+                      {isActive ? 'Açık' : 'Kapalı'}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <MapContainer
@@ -331,20 +483,11 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
         className="w-full h-full z-0"
       >
         <ZoomControl position="bottomright" />
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="OpenStreetMap">
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Karanlık Tema">
-            <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            />
-          </LayersControl.BaseLayer>
-        </LayersControl>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+        />
 
         <MapCameraController target={selectedNeighborhood} />
         <MapClickHandler onLocationClick={handleMapClick} />
@@ -380,6 +523,57 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
           </Pane>
         )}
 
+        {/* Toggleable POI Markers Pane */}
+        {activePoiItems.length > 0 && (
+          <Pane name="poi-markers" style={{ zIndex: 420 }}>
+            {activePoiItems.map((poi) => {
+              const meta = POI_CATEGORY_META[poi.category];
+              return (
+                <CircleMarker
+                  key={poi.id}
+                  center={[poi.lat, poi.lng]}
+                  radius={5}
+                  pathOptions={{
+                    color: '#061317',
+                    weight: 1.5,
+                    fillColor: meta.color,
+                    fillOpacity: 0.92,
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -5]} className="cyber-leaflet-tooltip" opacity={1}>
+                    <div className="text-[11px] space-y-0.5">
+                      <span
+                        className="font-mono text-[9px] uppercase font-bold block"
+                        style={{ color: meta.color }}
+                      >
+                        {meta.shortLabel}
+                      </span>
+                      <span className="font-semibold text-white block">{poi.name}</span>
+                      {poi.district && (
+                        <span className="text-[10px] text-teal-200/75 block">{poi.district}</span>
+                      )}
+                    </div>
+                  </Tooltip>
+                  <Popup className="cyber-leaflet-popup">
+                    <div className="min-w-[160px] p-1 text-xs text-teal-50 space-y-1">
+                      <span
+                        className="text-[10px] font-mono font-bold uppercase block"
+                        style={{ color: meta.color }}
+                      >
+                        {meta.label}
+                      </span>
+                      <p className="font-bold text-white">{poi.name}</p>
+                      {poi.district && (
+                        <p className="text-[11px] text-teal-200/75">{poi.district}, Ankara</p>
+                      )}
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              );
+            })}
+          </Pane>
+        )}
+
         {/* Selected Reference Point Pin */}
         {hasValidReferencePoint && referencePoint && (
           <CircleMarker
@@ -402,10 +596,15 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
         )}
 
         {neighborhoods.map((n) => {
-          const distanceKm =
-            hasValidReferencePoint && referencePoint
-              ? calculateDistanceKm(referencePoint.lat, referencePoint.lng, n.lat, n.lng)
-              : null;
+          let travelEstimate: TravelEstimate | null = null;
+          if (hasValidReferencePoint && referencePoint) {
+            if (travelTimes[n.id]) {
+              travelEstimate = travelTimes[n.id];
+            } else {
+              const dist = calculateDistanceKm(referencePoint.lat, referencePoint.lng, n.lat, n.lng);
+              travelEstimate = estimateFallbackTravelMinutes(dist);
+            }
+          }
 
           return (
             <NeighborhoodMarker
@@ -413,7 +612,7 @@ export const AnkaraMap: React.FC<AnkaraMapProps> = ({
               neighborhood={n}
               activeLayer={activeLayer}
               isSelected={selectedNeighborhood?.id === n.id}
-              distanceKm={distanceKm}
+              travelEstimate={travelEstimate}
               onSelectNeighborhood={onSelectNeighborhood}
               onAddToCompare={onAddToCompare}
             />

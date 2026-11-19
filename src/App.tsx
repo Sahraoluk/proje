@@ -1,16 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import axios from 'axios';
 import {
   ANKARA_NEIGHBORHOODS,
   ANKARA_DISTRICTS,
   INITIAL_FILTER_STATE,
   REFERENCE_POINTS,
+  DEFAULT_SCORE_WEIGHTS,
+  computeWeightedLivability,
+  isCustomWeightsActive,
+  estimateFallbackTravelMinutes,
   FilterState,
 } from './data/ankaraData';
-import { NeighborhoodData, LayerType } from './types';
-import { Header } from './components/Header';
+import {
+  NeighborhoodData,
+  LayerType,
+  ScoreWeights,
+  TravelEstimate,
+} from './types';
+import { Header, AppTab } from './components/Header';
 import { AnkaraMap } from './components/AnkaraMap';
 import { AnalyticsCharts } from './components/AnalyticsCharts';
 import { NeighborhoodCardList } from './components/NeighborhoodCardList';
+import { CommunityReviewsPage } from './components/CommunityReviewsPage';
 import { FilterControls } from './components/FilterControls';
 import { AiAdvisorBar } from './components/AiAdvisorBar';
 import { DistrictSummaryCard } from './components/DistrictSummaryCard';
@@ -20,17 +31,84 @@ import { DataUploaderModal } from './components/DataUploaderModal';
 import { CustomReportModal } from './components/CustomReportModal';
 import { ShieldAlert, Sparkles, TrainFront } from 'lucide-react';
 
+const VALID_LAYERS: LayerType[] = [
+  'livability',
+  'safety',
+  'education',
+  'transport',
+  'entertainment',
+  'economy',
+];
+
+function getInitialUrlState(): {
+  layer: LayerType;
+  compareIds: string[];
+} {
+  if (typeof window === 'undefined') {
+    return { layer: 'livability', compareIds: [] };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const rawLayer = params.get('layer') as LayerType | null;
+  const layer = rawLayer && VALID_LAYERS.includes(rawLayer) ? rawLayer : 'livability';
+
+  const rawCompare = params.get('compare');
+  const validIds = new Set(ANKARA_NEIGHBORHOODS.map((n) => n.id));
+  const compareIds = rawCompare
+    ? rawCompare
+        .split(',')
+        .map((id) => id.trim())
+        .filter((id) => validIds.has(id))
+        .slice(0, 3)
+    : [];
+
+  return { layer, compareIds };
+}
+
 export default function App() {
-  const [neighborhoods, setNeighborhoods] = useState<NeighborhoodData[]>(ANKARA_NEIGHBORHOODS);
-  const [filter, setFilter] = useState<FilterState>(INITIAL_FILTER_STATE);
-  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'rankings'>('map');
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState<NeighborhoodData | null>(null);
-  const [comparedNeighborhoods, setComparedNeighborhoods] = useState<NeighborhoodData[]>([]);
+  const initialUrlState = useMemo(() => getInitialUrlState(), []);
+
+  const [baseNeighborhoods, setBaseNeighborhoods] =
+    useState<NeighborhoodData[]>(ANKARA_NEIGHBORHOODS);
+  const [filter, setFilter] = useState<FilterState>(() => ({
+    ...INITIAL_FILTER_STATE,
+    selectedLayer: initialUrlState.layer,
+  }));
+  const [scoreWeights, setScoreWeights] = useState<ScoreWeights>(DEFAULT_SCORE_WEIGHTS);
+  const [activeTab, setActiveTab] = useState<AppTab>('map');
+  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null);
+  const [comparedIds, setComparedIds] = useState<string[]>(initialUrlState.compareIds);
+  const [travelTimes, setTravelTimes] = useState<Record<string, TravelEstimate>>({});
 
   // Modals state
-  const [isCompareOpen, setIsCompareOpen] = useState<boolean>(false);
+  const [isCompareOpen, setIsCompareOpen] = useState<boolean>(
+    initialUrlState.compareIds.length >= 2
+  );
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isReportOpen, setIsReportOpen] = useState<boolean>(false);
+
+  const customWeightsActive = useMemo(
+    () => isCustomWeightsActive(scoreWeights),
+    [scoreWeights]
+  );
+
+  // Dynamically recompute livabilityScore when custom weights change
+  const neighborhoods = useMemo(() => {
+    return baseNeighborhoods.map((n) => ({
+      ...n,
+      livabilityScore: computeWeightedLivability(n, scoreWeights),
+    }));
+  }, [baseNeighborhoods, scoreWeights]);
+
+  const selectedNeighborhood = useMemo(() => {
+    if (!selectedNeighborhoodId) return null;
+    return neighborhoods.find((n) => n.id === selectedNeighborhoodId) || null;
+  }, [neighborhoods, selectedNeighborhoodId]);
+
+  const comparedNeighborhoods = useMemo(() => {
+    return comparedIds
+      .map((id) => neighborhoods.find((n) => n.id === id))
+      .filter((n): n is NeighborhoodData => Boolean(n));
+  }, [neighborhoods, comparedIds]);
 
   const activeReferencePoint = useMemo(() => {
     return (
@@ -46,6 +124,80 @@ export default function App() {
       ) || null
     );
   }, [filter.selectedDistrict]);
+
+  // Sync URL query params (?compare=...&layer=...)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (comparedIds.length > 0) {
+      params.set('compare', comparedIds.join(','));
+    } else {
+      params.delete('compare');
+    }
+    params.set('layer', filter.selectedLayer);
+    params.delete('time');
+
+    const nextQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+    window.history.replaceState(null, '', nextUrl);
+  }, [comparedIds, filter.selectedLayer]);
+
+  // Fetch OSRM travel times via backend proxy whenever reference point changes
+  useEffect(() => {
+    if (!activeReferencePoint || activeReferencePoint.id === 'none') {
+      setTravelTimes({});
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+
+    const fetchTravelTimes = async () => {
+      try {
+        const res = await axios.post<{ estimates?: Record<string, TravelEstimate> }>(
+          '/api/travel-times',
+          {
+            origin: { lat: activeReferencePoint.lat, lng: activeReferencePoint.lng },
+            destinations: baseNeighborhoods.map((n) => ({
+              id: n.id,
+              lat: n.lat,
+              lng: n.lng,
+            })),
+          },
+          { signal: controller.signal, timeout: 10000 }
+        );
+        if (!cancelled && res.data?.estimates) {
+          setTravelTimes(res.data.estimates);
+        }
+      } catch {
+        if (!cancelled) {
+          // Graceful Haversine fallback already handled per card/marker
+          const fallbackMap: Record<string, TravelEstimate> = {};
+          baseNeighborhoods.forEach((n) => {
+            const R = 6371;
+            const dLat = ((n.lat - activeReferencePoint.lat) * Math.PI) / 180;
+            const dLon = ((n.lng - activeReferencePoint.lng) * Math.PI) / 180;
+            const a =
+              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos((activeReferencePoint.lat * Math.PI) / 180) *
+                Math.cos((n.lat * Math.PI) / 180) *
+                Math.sin(dLon / 2) *
+                Math.sin(dLon / 2);
+            const km = R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            fallbackMap[n.id] = estimateFallbackTravelMinutes(km);
+          });
+          setTravelTimes(fallbackMap);
+        }
+      }
+    };
+
+    fetchTravelTimes();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [activeReferencePoint, baseNeighborhoods]);
 
   // Filtered Neighborhoods computation
   const filteredNeighborhoods = useMemo(() => {
@@ -80,20 +232,20 @@ export default function App() {
   }, [neighborhoods, filter]);
 
   const handleToggleCompare = (target: NeighborhoodData) => {
-    setComparedNeighborhoods((prev) => {
-      const exists = prev.some((n) => n.id === target.id);
-      if (exists) {
-        return prev.filter((n) => n.id !== target.id);
+    setComparedIds((prev) => {
+      if (prev.includes(target.id)) {
+        return prev.filter((id) => id !== target.id);
       }
       if (prev.length >= 3) {
-        return [...prev.slice(1), target];
+        return [...prev.slice(1), target.id];
       }
-      return [...prev, target];
+      return [...prev, target.id];
     });
   };
 
   const handleResetFilters = () => {
     setFilter(INITIAL_FILTER_STATE);
+    setScoreWeights(DEFAULT_SCORE_WEIGHTS);
   };
 
   const handleResetDistrict = () => {
@@ -153,7 +305,7 @@ export default function App() {
         {/* AI Neighborhood Advisor Bar */}
         <AiAdvisorBar
           neighborhoods={neighborhoods}
-          onSelectNeighborhood={(n) => setSelectedNeighborhood(n)}
+          onSelectNeighborhood={(n) => setSelectedNeighborhoodId(n.id)}
         />
 
         {/* Filter Controls Bar */}
@@ -163,6 +315,9 @@ export default function App() {
           onReset={handleResetFilters}
           totalCount={neighborhoods.length}
           filteredCount={filteredNeighborhoods.length}
+          scoreWeights={scoreWeights}
+          onWeightsChange={setScoreWeights}
+          onResetWeights={() => setScoreWeights(DEFAULT_SCORE_WEIGHTS)}
         />
 
         {/* Tab 1: Interactive Leaflet Map View */}
@@ -171,7 +326,7 @@ export default function App() {
             <AnkaraMap
               neighborhoods={filteredNeighborhoods}
               selectedNeighborhood={selectedNeighborhood}
-              onSelectNeighborhood={(n) => setSelectedNeighborhood(n)}
+              onSelectNeighborhood={(n) => setSelectedNeighborhoodId(n.id)}
               activeLayer={filter.selectedLayer}
               onLayerChange={(layer: LayerType) =>
                 setFilter((prev) => ({ ...prev, selectedLayer: layer }))
@@ -182,6 +337,7 @@ export default function App() {
               }
               onAddToCompare={handleToggleCompare}
               referencePoint={activeReferencePoint}
+              travelTimes={travelTimes}
             />
 
             {/* District Summary Card if selected district has 0 or <= 1 matching pins */}
@@ -243,7 +399,7 @@ export default function App() {
         {activeTab === 'analytics' && (
           <AnalyticsCharts
             neighborhoods={filteredNeighborhoods}
-            onSelectNeighborhood={(n) => setSelectedNeighborhood(n)}
+            onSelectNeighborhood={(n) => setSelectedNeighborhoodId(n.id)}
           />
         )}
 
@@ -251,12 +407,22 @@ export default function App() {
         {activeTab === 'rankings' && (
           <NeighborhoodCardList
             neighborhoods={filteredNeighborhoods}
-            onSelectNeighborhood={(n) => setSelectedNeighborhood(n)}
+            onSelectNeighborhood={(n) => setSelectedNeighborhoodId(n.id)}
             onAddToCompare={handleToggleCompare}
             comparedIds={comparedNeighborhoods.map((n) => n.id)}
             referencePoint={activeReferencePoint}
             selectedDistrictSummary={selectedDistrictSummary}
             onResetDistrict={handleResetDistrict}
+            customWeightsActive={customWeightsActive}
+            travelTimes={travelTimes}
+          />
+        )}
+
+        {/* Tab 4: Dedicated Community Reviews Page (backed by data/feedback.json) */}
+        {activeTab === 'reviews' && (
+          <CommunityReviewsPage
+            neighborhoods={neighborhoods}
+            onSelectNeighborhood={(n) => setSelectedNeighborhoodId(n.id)}
           />
         )}
       </main>
@@ -293,19 +459,22 @@ export default function App() {
       {/* MODALS & DRAWERS */}
       <NeighborhoodDetailModal
         neighborhood={selectedNeighborhood}
-        onClose={() => setSelectedNeighborhood(null)}
+        onClose={() => setSelectedNeighborhoodId(null)}
         onAddToCompare={handleToggleCompare}
         isCompared={comparedNeighborhoods.some((n) => n.id === selectedNeighborhood?.id)}
         referencePoint={activeReferencePoint}
+        travelEstimate={
+          selectedNeighborhood ? travelTimes[selectedNeighborhood.id] ?? null : null
+        }
       />
 
       <ComparisonDrawer
         isOpen={isCompareOpen}
         onClose={() => setIsCompareOpen(false)}
         comparedNeighborhoods={comparedNeighborhoods}
-        onRemove={(id) => setComparedNeighborhoods((prev) => prev.filter((n) => n.id !== id))}
+        onRemove={(id) => setComparedIds((prev) => prev.filter((item) => item !== id))}
         onSelectForDetails={(n) => {
-          setSelectedNeighborhood(n);
+          setSelectedNeighborhoodId(n.id);
           setIsCompareOpen(false);
         }}
         allNeighborhoods={neighborhoods}
@@ -315,8 +484,8 @@ export default function App() {
       <DataUploaderModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onApplyDataset={(updated) => setNeighborhoods(updated)}
-        currentNeighborhoods={neighborhoods}
+        onApplyDataset={(updated) => setBaseNeighborhoods(updated)}
+        currentNeighborhoods={baseNeighborhoods}
       />
 
       <CustomReportModal

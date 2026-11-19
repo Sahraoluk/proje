@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DistrictSummary, NeighborhoodData } from '../types';
+import { DistrictSummary, NeighborhoodData, TravelEstimate } from '../types';
 import {
   ArrowUpDown,
   ShieldAlert,
@@ -11,10 +11,14 @@ import {
   ChevronRight,
   ExternalLink,
   Navigation,
+  Car,
+  Footprints,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   ReferencePoint,
   calculateDistanceKm,
+  estimateFallbackTravelMinutes,
   getScoreColor,
   isDangerousNeighborhood,
 } from '../data/ankaraData';
@@ -30,6 +34,8 @@ interface NeighborhoodCardListProps {
   referencePoint?: ReferencePoint | null;
   selectedDistrictSummary?: DistrictSummary | null;
   onResetDistrict?: () => void;
+  customWeightsActive?: boolean;
+  travelTimes?: Record<string, TravelEstimate>;
 }
 
 export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
@@ -40,6 +46,8 @@ export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
   referencePoint,
   selectedDistrictSummary,
   onResetDistrict,
+  customWeightsActive = false,
+  travelTimes = {},
 }) => {
   const hasReferencePoint = Boolean(referencePoint && referencePoint.id !== 'none');
   const [sortOption, setSortOption] = useState<SortOption>('livabilityDesc');
@@ -69,6 +77,54 @@ export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
     }
     return b.livabilityScore - a.livabilityScore;
   });
+
+  const getLivabilityStyle = (score: number, isDangerous: boolean) => {
+    if (isDangerous || score < 55) {
+      return {
+        textClass: 'text-red-400',
+        boxClass: 'bg-red-500/10 border-red-500/35',
+        dotClass: 'bg-red-500',
+        label: 'Kötü / Riskli',
+      };
+    }
+    if (score < 75) {
+      return {
+        textClass: 'text-yellow-400',
+        boxClass: 'bg-yellow-500/10 border-yellow-500/35',
+        dotClass: 'bg-yellow-400',
+        label: 'Orta',
+      };
+    }
+    return {
+      textClass: 'text-emerald-400',
+      boxClass: 'bg-emerald-500/10 border-emerald-500/35',
+      dotClass: 'bg-emerald-400',
+      label: 'İyi',
+    };
+  };
+
+  const getRiskBadge = (n: NeighborhoodData, isDangerous: boolean) => {
+    if (
+      isDangerous ||
+      n.crimeRateCategory === 'Yüksek' ||
+      n.crimeRateCategory === 'Çok Yüksek'
+    ) {
+      return {
+        label: 'Risk Yüksek',
+        className: 'bg-red-500/20 text-red-300 border-red-500/45',
+      };
+    }
+    if (n.crimeRateCategory === 'Orta') {
+      return {
+        label: 'Risk Orta',
+        className: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/45',
+      };
+    }
+    return {
+      label: 'Risk Düşük',
+      className: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/45',
+    };
+  };
 
   return (
     <div className="space-y-4 animate-in fade-in duration-300">
@@ -142,6 +198,73 @@ export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
         </div>
       </div>
 
+      {/* Compact Livability Score Color Legend Table */}
+      <div className="rounded-2xl glass-panel border border-[#e8a0b2]/25 p-3.5 sm:p-4 overflow-x-auto">
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <h4 className="text-xs font-display font-bold uppercase tracking-wider text-[#f3c1cd]">
+            Yaşam Skoru Renk Rehberi
+          </h4>
+          <span className="text-[11px] font-mono text-teal-200/70">
+            0 – 100 Puan Skalası
+          </span>
+        </div>
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-teal-900/70 text-[11px] font-mono text-teal-200/75">
+              <th className="py-1.5 pr-3 font-semibold">Renk</th>
+              <th className="py-1.5 px-3 font-semibold">Puan Aralığı</th>
+              <th className="py-1.5 px-3 font-semibold">Durum</th>
+              <th className="py-1.5 pl-3 font-semibold">Anlamı</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-teal-900/50 text-teal-50/90">
+            <tr>
+              <td className="py-2 pr-3 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+                  Yeşil
+                </span>
+              </td>
+              <td className="py-2 px-3 font-mono text-emerald-300 whitespace-nowrap">75 – 100</td>
+              <td className="py-2 px-3 font-semibold text-emerald-400 whitespace-nowrap">İyi</td>
+              <td className="py-2 pl-3 text-teal-100/80">
+                Güvenlik, ulaşım ve sosyal olanakları yüksek, yaşanabilirliği güçlü mahalleler.
+              </td>
+            </tr>
+            <tr>
+              <td className="py-2 pr-3 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-yellow-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.55)]" />
+                  Sarı
+                </span>
+              </td>
+              <td className="py-2 px-3 font-mono text-yellow-300 whitespace-nowrap">55 – 74</td>
+              <td className="py-2 px-3 font-semibold text-yellow-400 whitespace-nowrap">Orta</td>
+              <td className="py-2 pl-3 text-teal-100/80">
+                Dengeli yaşam koşulları sunan, bazı kriterlerde gelişime açık mahalleler.
+              </td>
+            </tr>
+            <tr>
+              <td className="py-2 pr-3 whitespace-nowrap">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-red-400">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]" />
+                  Kırmızı
+                </span>
+              </td>
+              <td className="py-2 px-3 font-mono text-red-300 whitespace-nowrap">
+                0 – 54 / Riskli
+              </td>
+              <td className="py-2 px-3 font-semibold text-red-400 whitespace-nowrap">
+                Kötü / Riskli
+              </td>
+              <td className="py-2 pl-3 text-teal-100/80">
+                Yaşam skoru düşük veya yüksek asayiş riski taşıyan, dikkat gerektiren mahalleler.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
       {/* Empty State without a district selected */}
       {sortedNeighborhoods.length === 0 && !selectedDistrictSummary && (
         <div className="rounded-3xl glass-panel border border-teal-900/70 p-8 text-center text-sm text-teal-200/70">
@@ -155,16 +278,24 @@ export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
           const isCompared = comparedIds.includes(n.id);
           const isTopTier = n.livabilityScore >= 90;
           const isDangerous = isDangerousNeighborhood(n);
+          const livabilityStyle = getLivabilityStyle(n.livabilityScore, isDangerous);
+          const riskBadge = getRiskBadge(n, isDangerous);
           const distanceKm = getDistance(n);
+          const travel =
+            distanceKm !== null
+              ? travelTimes[n.id] ?? estimateFallbackTravelMinutes(distanceKm)
+              : null;
 
           return (
             <div
               key={n.id}
               className={`rounded-2xl border border-[#e8a0b2]/20 p-5 flex flex-col justify-between transition-all hover:border-[#e8a0b2]/55 glass-panel shadow-md ${
-                isTopTier
+                isTopTier && !isDangerous
                   ? 'ring-1 ring-emerald-500/30'
-                  : isDangerous
+                  : isDangerous || n.livabilityScore < 55
                   ? 'ring-1 ring-red-500/40'
+                  : n.livabilityScore < 75
+                  ? 'ring-1 ring-yellow-500/30'
                   : ''
               }`}
             >
@@ -181,26 +312,52 @@ export const NeighborhoodCardList: React.FC<NeighborhoodCardListProps> = ({
                     <h3 className="font-display font-bold text-white text-base">{n.name}</h3>
                   </div>
 
-                  {/* Main Badge */}
-                  <div className="text-right">
-                    <div className="font-mono font-extrabold text-xl text-emerald-400">
-                      {n.livabilityScore}
-                      <span className="text-[10px] text-teal-200/60 font-sans font-normal ml-0.5">
-                        /100
+                  {/* Main Badge + Risk Status */}
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <div
+                      className={`text-right px-2.5 py-1.5 rounded-xl border ${livabilityStyle.boxClass}`}
+                    >
+                      <div className="flex items-center justify-end gap-2">
+                        <div className={`font-mono font-extrabold text-xl leading-none ${livabilityStyle.textClass}`}>
+                          {n.livabilityScore}
+                          <span className="text-[10px] text-teal-200/60 font-sans font-normal ml-0.5">
+                            /100
+                          </span>
+                        </div>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-md border text-[10px] font-mono font-bold whitespace-nowrap ${riskBadge.className}`}
+                        >
+                          {riskBadge.label}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-teal-200/75 font-mono flex items-center justify-end gap-1 mt-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${livabilityStyle.dotClass}`} />
+                        {customWeightsActive && (
+                          <SlidersHorizontal className="w-2.5 h-2.5 text-[#f3c1cd]" />
+                        )}
+                        <span>
+                          {customWeightsActive ? 'Özel Skor' : livabilityStyle.label}
+                        </span>
                       </span>
                     </div>
-                    <span className="text-[10px] text-teal-200/70 font-mono block">
-                      Yaşam Skoru
-                    </span>
                   </div>
                 </div>
 
-                {/* Distance Badge when reference point is active */}
-                {distanceKm !== null && referencePoint && (
-                  <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[#f3c1cd] text-[11px] font-mono font-semibold">
-                    <Navigation className="w-3 h-3 text-[#e8a0b2] shrink-0" />
-                    <span>
-                      {referencePoint.label}: Seçili noktaya {distanceKm.toFixed(1)} km
+                {/* Distance & OSRM Travel Time Badge when reference point is active */}
+                {distanceKm !== null && referencePoint && travel && (
+                  <div className="mb-3 flex flex-wrap items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#e8a0b2]/15 border border-[#e8a0b2]/40 text-[#f3c1cd] text-[11px] font-mono font-semibold">
+                    <span className="inline-flex items-center gap-1">
+                      <Navigation className="w-3 h-3 text-[#e8a0b2] shrink-0" />
+                      <span>
+                        {referencePoint.label}: {travel.distanceKm.toFixed(1)} km
+                      </span>
+                    </span>
+                    <span className="text-teal-200/50">·</span>
+                    <span className="inline-flex items-center gap-1 text-teal-200">
+                      <Car className="w-3 h-3 text-teal-300" />~{travel.drivingMinutes} dk
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-teal-200">
+                      <Footprints className="w-3 h-3 text-[#e8a0b2]" />~{travel.walkingMinutes} dk
                     </span>
                   </div>
                 )}

@@ -1,10 +1,47 @@
-export type LayerType = 
-  | 'livability' 
-  | 'safety' 
-  | 'education' 
-  | 'transport' 
-  | 'entertainment' 
+export type LayerType =
+  | 'livability'
+  | 'safety'
+  | 'education'
+  | 'transport'
+  | 'entertainment'
   | 'economy';
+
+export interface ScoreWeights {
+  safety: number;
+  transport: number;
+  economy: number;
+  entertainment: number;
+}
+
+export type PoiCategory = 'hospital' | 'library' | 'park' | 'police' | 'veterinary';
+
+export interface PoiItem {
+  id: string;
+  name: string;
+  category: PoiCategory;
+  lat: number;
+  lng: number;
+  district?: string;
+  note?: string;
+}
+
+export interface TravelEstimate {
+  distanceKm: number;
+  walkingMinutes: number;
+  drivingMinutes: number;
+  source: 'osrm' | 'fallback';
+}
+
+export interface FeedbackItem {
+  id: string;
+  neighborhoodId: string;
+  name: string;
+  comment: string;
+  safety: number;
+  transport: number;
+  livability: number;
+  createdAt: string;
+}
 
 export interface ScoreBreakdown {
   score: number; // 0 - 100
@@ -23,13 +60,13 @@ export interface NeighborhoodData {
   population: number;
   averageRent: number; // TL
   incomeLevel: 'Çok Yüksek' | 'Yüksek' | 'Orta-Üst' | 'Orta' | 'Orta-Düşük' | 'Düşük';
-  
+
   // Specific requested scores (0-100)
   livabilityScore: number;
-  safetyScore: number;      // 100 = safest, 0 = highest crime
+  safetyScore: number; // 100 = safest, 0 = highest crime
   crimeRateCategory: 'Çok Düşük' | 'Düşük' | 'Orta' | 'Yüksek' | 'Çok Yüksek';
   crimeIncidentsPer1k: number;
-  
+
   educationScore: number;
   transportScore: number;
   entertainmentScore: number;
@@ -55,17 +92,17 @@ export interface NeighborhoodData {
   idealFor: string[];
   pros: string[];
   cons: string[];
-  provinceCoordinates?: { x: number; y: number }; // Percentage position on the official Ankara province map image
+  provinceCoordinates?: { x: number; y: number };
 }
 
 export interface DistrictSummary {
   id: string;
   name: string;
   plate: string;
-  numberIndex?: number; // (1) to (8) from the official map legend
+  numberIndex?: number;
   centerCoordinates: { x: number; y: number };
-  provinceCoordinates: { x: number; y: number }; // (0-100% on the uploaded Ankara_districts map)
-  svgPath: string; // Vector polygon path for the map
+  provinceCoordinates: { x: number; y: number };
+  svgPath: string;
   colorTheme: string;
   neighborhoodsCount: number;
   averageLivability: number;
@@ -78,7 +115,7 @@ export interface DistrictSummary {
 
 export interface HistoricalSafetyPoint {
   year: number;
-  index: number; // The user's Statbase chart points (20.6 up to 46.2 then ~39.5)
+  index: number;
   description?: string;
 }
 
